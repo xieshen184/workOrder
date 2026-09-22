@@ -12,6 +12,10 @@
         <result property="lastHeartbeatAt" column="last_heartbeat_at"/>
         <result property="updateTime" column="update_time"/><result property="online" column="online"/>
     </resultMap>
+    <!--
+      人员页读取的是实时投影：角色决定人员边界，状态表保存人工上报，工单聚合提供当前负载。
+      状态表尚无记录时使用 ON_DUTY/AVAILABLE 默认值，保证初始化账号能够参与第一轮联调。
+    -->
     <sql id="engineerSelect">
         select u.user_id id, coalesce(nullif(u.nick_name, ''), u.user_name) name,
                u.dept_id, d.dept_name dept,
@@ -47,6 +51,7 @@
     </select>
     <select id="selectEligibleById" parameterType="Long" resultMap="EngineerResult">
         <include refid="engineerSelect"/>
+        <!-- 派单资格只受明确休班控制；心跳过期用于调度提示，不在开发联调阶段直接阻断派单。 -->
         and u.user_id = #{id}
         and coalesce(es.duty_status, 'ON_DUTY') = 'ON_DUTY'
         limit 1
@@ -75,6 +80,7 @@
     </select>
 
     <insert id="upsertStatus">
+        <!-- 单语句新增或更新，避免首次上报时先查后写产生并发窗口。 -->
         insert into wo_engineer_status
         (engineer_id, engineer_name, engineer_dept_id, duty_status, work_status,
          current_order_id, active_order_count, overdue_order_count, status_source,

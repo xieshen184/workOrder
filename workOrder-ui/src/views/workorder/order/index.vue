@@ -908,7 +908,10 @@ export default {
       this.engineersLoading = true
       this.engineersError = ''
       return getEngineers().then(response => {
-        this.engineers = extractRows(response).filter(item => this.engineerOptionId(item) !== undefined)
+        // 休班人员不应进入派单候选项；后端仍会在提交时再次校验，避免并发状态变化导致误派。
+        this.engineers = extractRows(response).filter(item =>
+          this.engineerOptionId(item) !== undefined && item.dutyStatus !== 'OFF_DUTY'
+        )
       }).catch(error => {
         this.engineers = []
         this.engineersError = requestErrorMessage(error, '维修人员加载失败，请重试')

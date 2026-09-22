@@ -79,11 +79,14 @@ export function getEngineers() {
   return request({
     url: '/workorder/admin/engineers',
     method: 'get'
-  }).then(response => (Array.isArray(response.data) ? response.data : []).map(engineer => ({
-    ...engineer,
-    department: engineer.dept || '未分配科室',
-    specialty: `状态：${engineer.status || '未知'} · 当前负载：${Number(engineer.load || 0)}`
-  })))
+  }).then(response => (Array.isArray(response.data) ? response.data : [])
+    // 未上报心跳不等于休班，因此这里只排除明确休班的人员，方便本地联调账号正常派单。
+    .filter(engineer => engineer.dutyStatus !== 'OFF_DUTY')
+    .map(engineer => ({
+      ...engineer,
+      department: engineer.dept || '未分配科室',
+      specialty: `状态：${engineer.status || '未知'} · 当前负载：${Number(engineer.load || 0)}`
+    })))
 }
 
 export function getOrderDetail(orderId) {

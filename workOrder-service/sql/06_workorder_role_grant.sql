@@ -99,7 +99,7 @@ WHERE @wo_engineer_role_id IS NOT NULL
       AND grant_row.menu_id = menu.menu_id
   );
 
--- 调度管理员拥有PC目录和页面定义；页面当前为停用，不会下发不存在的前端组件。
+-- 调度管理员预授予PC目录和页面定义；各页面由对应节点的增量脚本在文件落地后启用。
 INSERT INTO sys_role_menu (role_id, menu_id)
 SELECT @wo_dispatcher_role_id, menu.menu_id
 FROM sys_menu menu

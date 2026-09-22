@@ -59,10 +59,29 @@ public class WorkOrderRoleGrantSqlTest
                 + "@GetMapping\\(\\\"/\\{id\\}/evaluation\\\"\\).*"));
     }
 
+    /**
+     * 节点启用脚本必须同时开放两个页面并补齐调度管理员权限，而且允许在已有环境重复执行。
+     */
+    @Test
+    public void m1D03EnablementShouldBeCompleteAndIdempotent() throws IOException
+    {
+        String sql = readSql("10_workorder_m1_d03.sql");
+        assertContains(sql, "workorder/engineer/index", "workorder/category/index",
+                "workorder:engineer:list", "workorder:category:list",
+                "workorder:category:query", "workorder:category:add",
+                "workorder:category:edit", "NOT EXISTS");
+        assertTrue(sql.contains("role_key = 'workorder_dispatcher'"));
+    }
+
     private String readSql() throws IOException
     {
-        Path path = Paths.get("sql", "06_workorder_role_grant.sql");
-        if (!Files.exists(path)) path = Paths.get("..", "sql", "06_workorder_role_grant.sql");
+        return readSql("06_workorder_role_grant.sql");
+    }
+
+    private String readSql(String fileName) throws IOException
+    {
+        Path path = Paths.get("sql", fileName);
+        if (!Files.exists(path)) path = Paths.get("..", "sql", fileName);
         return new String(Files.readAllBytes(path), StandardCharsets.UTF_8);
     }
 
