@@ -1,0 +1,75 @@
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: workorder-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: workorder
+      MYSQL_ROOT_PASSWORD: password
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
+    ports:
+      - "3306:3306"
+    volumes:
+      - workorder_mysql_data:/var/lib/mysql
+      - ./sql/ry_20250522.sql:/docker-entrypoint-initdb.d/01-ruoyi.sql:ro
+      - ./sql/quartz.sql:/docker-entrypoint-initdb.d/02-quartz.sql:ro
+      - ./sql/03_workorder_core_schema.sql:/docker-entrypoint-initdb.d/03-workorder-core-schema.sql:ro
+      - ./sql/04_workorder_dict.sql:/docker-entrypoint-initdb.d/04-workorder-dict.sql:ro
+      - ./sql/05_workorder_menu.sql:/docker-entrypoint-initdb.d/05-workorder-menu.sql:ro
+      - ./sql/06_workorder_role_grant.sql:/docker-entrypoint-initdb.d/06-workorder-role-grant.sql:ro
+      - ./sql/07_workorder_seed.sql:/docker-entrypoint-initdb.d/07-workorder-seed.sql:ro
+      - ./sql/08_workorder_m1_core_adjust.sql:/docker-entrypoint-initdb.d/08-workorder-m1-core-adjust.sql:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-ppassword"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    container_name: workorder-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - workorder_redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  backend:
+    profiles: ["app"]
+    build: .
+    container_name: workorder-service
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: jdbc:mysql://mysql:3306/workorder?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
+      DB_USERNAME: root
+      DB_PASSWORD: password
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      TOKEN_SECRET: replace-this-with-a-long-random-secret-before-production
+      SWAGGER_ENABLED: "true"
+      WORKORDER_UPLOAD_PATH: /data/workorder/upload
+      TZ: Asia/Shanghai
+    ports:
+      - "8080:8080"
+    volumes:
+      - workorder_upload_data:/data/workorder/upload
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  workorder_mysql_data:
+  workorder_redis_data:
+  workorder_upload_data:

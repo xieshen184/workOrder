@@ -1,0 +1,152 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.workorder.mapper.WorkOrderMapper">
+    <resultMap id="WorkOrderResult" type="com.ruoyi.workorder.domain.model.WorkOrder">
+        <id property="id" column="id"/>
+        <result property="orderNo" column="order_no"/>
+        <result property="title" column="title"/>
+        <result property="categoryId" column="category_id"/>
+        <result property="categoryCode" column="category_code"/>
+        <result property="categoryName" column="category_name"/>
+        <result property="sourceType" column="source_type"/>
+        <result property="applicantId" column="applicant_id"/>
+        <result property="applicantName" column="applicant_name"/>
+        <result property="applicantPhone" column="applicant_phone"/>
+        <result property="applicantDeptId" column="applicant_dept_id"/>
+        <result property="applicantDeptName" column="applicant_dept_name"/>
+        <result property="location" column="location"/>
+        <result property="urgencyLevel" column="urgency_level"/>
+        <result property="impactScope" column="impact_scope"/>
+        <result property="description" column="description"/>
+        <result property="possibleCause" column="possible_cause"/>
+        <result property="status" column="status"/>
+        <result property="currentAssigneeId" column="current_assignee_id"/>
+        <result property="currentAssigneeName" column="current_assignee_name"/>
+        <result property="slaRuleId" column="sla_rule_id"/>
+        <result property="responseDeadline" column="response_deadline"/>
+        <result property="arrivalDeadline" column="arrival_deadline"/>
+        <result property="finishDeadline" column="finish_deadline"/>
+        <result property="submittedAt" column="submitted_at"/>
+        <result property="assignedAt" column="assigned_at"/>
+        <result property="acceptedAt" column="accepted_at"/>
+        <result property="arrivedAt" column="arrived_at"/>
+        <result property="processingAt" column="processing_at"/>
+        <result property="finishedAt" column="finished_at"/>
+        <result property="confirmedAt" column="confirmed_at"/>
+        <result property="closedAt" column="closed_at"/>
+        <result property="overdueFlag" column="overdue_flag"/>
+        <result property="warningFlag" column="warning_flag"/>
+        <result property="delayPendingFlag" column="delay_pending_flag"/>
+        <result property="version" column="version"/>
+        <result property="createBy" column="create_by"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateBy" column="update_by"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <sql id="orderColumns">
+        o.id, o.order_no, o.title, o.category_id, o.category_code, o.category_name,
+        o.source_type, o.applicant_id, o.applicant_name, o.applicant_phone,
+        o.applicant_dept_id, o.applicant_dept_name, o.location, o.urgency_level,
+        o.impact_scope, o.description, o.possible_cause, o.status,
+        o.current_assignee_id, o.current_assignee_name, o.sla_rule_id,
+        o.response_deadline, o.arrival_deadline, o.finish_deadline, o.submitted_at,
+        o.assigned_at, o.accepted_at, o.arrived_at, o.processing_at, o.finished_at,
+        o.confirmed_at, o.closed_at,
+        o.overdue_flag, o.warning_flag, o.delay_pending_flag, o.version,
+        o.create_by, o.create_time, o.update_by, o.update_time
+    </sql>
+
+    <sql id="orderFrom">
+        <!-- u/d 别名供若依 DataScope 切面生成用户与部门范围条件。 -->
+        from wo_order o
+        left join sys_user u on u.user_id = o.applicant_id
+        left join sys_dept d on d.dept_id = o.applicant_dept_id
+    </sql>
+
+    <insert id="insert" parameterType="com.ruoyi.workorder.domain.model.WorkOrder"
+            useGeneratedKeys="true" keyProperty="id">
+        insert into wo_order
+        (order_no, title, category_id, category_code, category_name, source_type,
+         applicant_id, applicant_name, applicant_phone, applicant_dept_id, applicant_dept_name,
+         location, urgency_level, impact_scope, description, possible_cause, status,
+         sla_rule_id, response_deadline, arrival_deadline, finish_deadline,
+         submitted_at, version, create_by, create_time, del_flag)
+        values
+        (#{orderNo}, #{title}, #{categoryId}, #{categoryCode}, #{categoryName}, #{sourceType},
+         #{applicantId}, #{applicantName}, #{applicantPhone}, #{applicantDeptId}, #{applicantDeptName},
+         #{location}, #{urgencyLevel}, #{impactScope}, #{description}, #{possibleCause}, #{status},
+         #{slaRuleId}, #{responseDeadline}, #{arrivalDeadline}, #{finishDeadline},
+         #{submittedAt}, #{version}, #{createBy}, #{createTime}, '0')
+    </insert>
+
+    <select id="selectById" parameterType="Long" resultMap="WorkOrderResult">
+        select <include refid="orderColumns"/> <include refid="orderFrom"/>
+        where o.id = #{id} and o.del_flag = '0'
+    </select>
+
+    <select id="selectByIdForUpdate" parameterType="Long" resultMap="WorkOrderResult">
+        select <include refid="orderColumns"/> from wo_order o
+        where o.id = #{id} and o.del_flag = '0' for update
+    </select>
+
+    <update id="applyCommand">
+        update wo_order
+        set status = #{targetStatus}, version = version + 1,
+            update_by = #{updateBy}, update_time = #{actionTime}
+        <if test="actionType == 'ASSIGN' or actionType == 'REASSIGN'">
+            , current_assignee_id = #{engineerId}, current_assignee_name = #{engineerName},
+              assigned_at = #{actionTime}, accepted_at = null, arrived_at = null,
+              processing_at = null, finished_at = null
+        </if>
+        <if test="actionType == 'ACCEPT'">, accepted_at = #{actionTime}</if>
+        <if test="actionType == 'ARRIVE'">
+            , arrived_at = #{actionTime}, processing_at = coalesce(processing_at, #{actionTime})
+        </if>
+        <if test="actionType == 'ASSESS' or actionType == 'PROGRESS'">
+            , processing_at = coalesce(processing_at, #{actionTime})
+        </if>
+        <if test="actionType == 'FINISH'">, finished_at = #{actionTime}</if>
+        <if test="actionType == 'CONFIRM'">, confirmed_at = #{actionTime}</if>
+        <if test="actionType == 'CANCEL' or actionType == 'EVALUATE'">, closed_at = #{actionTime}</if>
+        where id = #{id} and status = #{sourceStatus} and version = #{version} and del_flag = '0'
+    </update>
+
+    <select id="selectByOrderNo" parameterType="String" resultMap="WorkOrderResult">
+        select <include refid="orderColumns"/> <include refid="orderFrom"/>
+        where o.order_no = #{orderNo} and o.del_flag = '0'
+    </select>
+
+    <select id="selectScopedById" parameterType="com.ruoyi.workorder.application.model.WorkOrderQuery" resultMap="WorkOrderResult">
+        select <include refid="orderColumns"/> <include refid="orderFrom"/>
+        where o.id = #{id} and o.del_flag = '0'
+        <!-- dataScope 只由服务端切面写入，禁止从客户端请求参数直接赋值。 -->
+        ${params.dataScope}
+    </select>
+
+    <select id="selectList" parameterType="com.ruoyi.workorder.application.model.WorkOrderQuery" resultMap="WorkOrderResult">
+        select <include refid="orderColumns"/> <include refid="orderFrom"/>
+        <where>
+            o.del_flag = '0'
+            <if test="id != null">and o.id = #{id}</if>
+            <if test="applicantId != null">and o.applicant_id = #{applicantId}</if>
+            <if test="currentAssigneeId != null">and o.current_assignee_id = #{currentAssigneeId}</if>
+            <if test="status != null and status != ''">and o.status = #{status}</if>
+            <if test="categoryId != null">and o.category_id = #{categoryId}</if>
+            <if test="urgencyLevel != null">and o.urgency_level = #{urgencyLevel}</if>
+            <if test="keyword != null and keyword != ''">
+                and (o.order_no like concat('%', #{keyword}, '%')
+                  or o.title like concat('%', #{keyword}, '%')
+                  or o.description like concat('%', #{keyword}, '%'))
+            </if>
+            <if test="params.beginTime != null and params.beginTime != ''">
+                and o.create_time &gt;= #{params.beginTime}
+            </if>
+            <if test="params.endTime != null and params.endTime != ''">
+                and o.create_time &lt;= #{params.endTime}
+            </if>
+            ${params.dataScope}
+        </where>
+        order by o.create_time desc, o.id desc
+    </select>
+</mapper>

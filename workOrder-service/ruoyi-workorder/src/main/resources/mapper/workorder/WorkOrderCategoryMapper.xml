@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.workorder.mapper.WorkOrderCategoryMapper">
+    <resultMap id="CategoryResult" type="com.ruoyi.workorder.domain.model.WorkOrderCategory">
+        <id property="id" column="id"/><result property="parentId" column="parent_id"/>
+        <result property="categoryCode" column="category_code"/><result property="categoryName" column="category_name"/>
+        <result property="managerDeptId" column="manager_dept_id"/>
+        <result property="managerDeptName" column="manager_dept_name"/>
+        <result property="defaultSlaRuleId" column="default_sla_rule_id"/>
+        <result property="orderNum" column="order_num"/><result property="status" column="status"/>
+        <result property="remark" column="remark"/><result property="referenceCount" column="reference_count"/>
+        <result property="createBy" column="create_by"/><result property="updateBy" column="update_by"/>
+    </resultMap>
+
+    <sql id="categoryColumns">
+        c.id, c.parent_id, c.category_code, c.category_name, c.manager_dept_id,
+        d.dept_name manager_dept_name, c.default_sla_rule_id, c.order_num, c.status,
+        c.remark, c.create_by, c.update_by,
+        (select count(*) from wo_order o where o.category_id = c.id and o.del_flag = '0') reference_count
+    </sql>
+
+    <sql id="categoryFrom">
+        from wo_category c
+        left join sys_dept d on d.dept_id = c.manager_dept_id and d.del_flag = '0'
+    </sql>
+
+    <select id="selectById" parameterType="Long" resultMap="CategoryResult">
+        select <include refid="categoryColumns"/> <include refid="categoryFrom"/>
+        where c.id = #{id} and c.del_flag = '0'
+    </select>
+
+    <select id="selectActiveById" parameterType="Long" resultMap="CategoryResult">
+        select <include refid="categoryColumns"/> <include refid="categoryFrom"/>
+        where c.id = #{id} and c.status = '0' and c.del_flag = '0'
+    </select>
+
+    <select id="selectByCode" parameterType="String" resultMap="CategoryResult">
+        select <include refid="categoryColumns"/> <include refid="categoryFrom"/>
+        where c.category_code = #{code} and c.del_flag = '0' limit 1
+    </select>
+
+    <select id="selectActiveList" resultMap="CategoryResult">
+        select <include refid="categoryColumns"/> <include refid="categoryFrom"/>
+        where c.status = '0' and c.del_flag = '0' order by c.order_num, c.id
+    </select>
+
+    <select id="selectManageList" resultMap="CategoryResult">
+        select <include refid="categoryColumns"/> <include refid="categoryFrom"/>
+        where c.del_flag = '0' order by c.order_num, c.id
+    </select>
+
+    <select id="countActiveChildren" parameterType="Long" resultType="int">
+        select count(*) from wo_category
+        where parent_id = #{id} and status = '0' and del_flag = '0'
+    </select>
+
+    <insert id="insert" parameterType="com.ruoyi.workorder.domain.model.WorkOrderCategory"
+            useGeneratedKeys="true" keyProperty="id">
+        insert into wo_category
+        (parent_id, category_code, category_name, manager_dept_id, default_sla_rule_id,
+         order_num, status, create_by, create_time, update_by, update_time, remark, del_flag)
+        values
+        (#{parentId}, #{categoryCode}, #{categoryName}, #{managerDeptId}, null,
+         #{orderNum}, #{status}, #{createBy}, now(), '', null, #{remark}, '0')
+    </insert>
+
+    <update id="update" parameterType="com.ruoyi.workorder.domain.model.WorkOrderCategory">
+        update wo_category
+        set parent_id = #{parentId}, category_name = #{categoryName},
+            manager_dept_id = #{managerDeptId}, order_num = #{orderNum}, status = #{status},
+            remark = #{remark}, update_by = #{updateBy}, update_time = now()
+        where id = #{id} and del_flag = '0'
+    </update>
+</mapper>

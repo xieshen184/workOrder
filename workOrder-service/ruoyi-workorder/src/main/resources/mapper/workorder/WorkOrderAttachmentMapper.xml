@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.workorder.mapper.WorkOrderAttachmentMapper">
+    <resultMap id="AttachmentResult" type="com.ruoyi.workorder.domain.model.WorkOrderAttachment">
+        <id property="id" column="id"/>
+        <result property="orderId" column="order_id"/>
+        <result property="bizStage" column="biz_stage"/>
+        <result property="bizRefId" column="biz_ref_id"/>
+        <result property="fileName" column="file_name"/>
+        <result property="objectKey" column="object_key"/>
+        <result property="storageProvider" column="storage_provider"/>
+        <result property="fileHash" column="file_hash"/>
+        <result property="fileType" column="file_type"/>
+        <result property="fileSize" column="file_size"/>
+        <result property="uploaderId" column="uploader_id"/>
+        <result property="uploaderName" column="uploader_name"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <sql id="columns">id, order_id, biz_stage, biz_ref_id, file_name, object_key,
+        storage_provider, file_hash, file_type, file_size, uploader_id, uploader_name, create_time</sql>
+
+    <insert id="insert" parameterType="com.ruoyi.workorder.domain.model.WorkOrderAttachment"
+            useGeneratedKeys="true" keyProperty="id">
+        insert into wo_attachment
+        (order_id, biz_stage, biz_ref_id, file_name, object_key, storage_provider,
+         file_hash, file_type, file_size, uploader_id, uploader_name, create_time, del_flag)
+        values
+        (#{orderId}, #{bizStage}, #{bizRefId}, #{fileName}, #{objectKey}, #{storageProvider},
+         #{fileHash}, #{fileType}, #{fileSize}, #{uploaderId}, #{uploaderName}, #{createTime}, '0')
+    </insert>
+
+    <select id="selectById" parameterType="Long" resultMap="AttachmentResult">
+        select <include refid="columns"/> from wo_attachment where id = #{id} and del_flag = '0'
+    </select>
+
+    <select id="selectByOrderId" parameterType="Long" resultMap="AttachmentResult">
+        select <include refid="columns"/> from wo_attachment
+        where order_id = #{orderId} and del_flag = '0' order by create_time, id
+    </select>
+
+    <update id="bindToOrder">
+        <!-- 只有当前用户、未绑定、提交阶段的附件可以进入新工单。 -->
+        update wo_attachment set order_id = #{orderId}
+        where uploader_id = #{uploaderId} and order_id is null and biz_stage = 'SUBMIT' and del_flag = '0'
+          and id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </update>
+
+    <update id="bindToProcess">
+        <!-- Count checking in the command transaction makes uploader/stage/binding validation atomic. -->
+        update wo_attachment set order_id = #{orderId}, biz_ref_id = #{bizRefId}
+        where uploader_id = #{uploaderId} and order_id is null and biz_ref_id is null
+          and biz_stage = #{expectedStage} and del_flag = '0'
+          and id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </update>
+
+    <update id="markDeletedIfUnbound">
+        update wo_attachment set del_flag = '2'
+        where id = #{id} and uploader_id = #{uploaderId} and order_id is null and del_flag = '0'
+    </update>
+</mapper>

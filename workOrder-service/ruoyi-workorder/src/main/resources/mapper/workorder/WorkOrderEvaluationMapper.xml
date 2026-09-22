@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.workorder.mapper.WorkOrderEvaluationMapper">
+    <resultMap id="EvaluationResult" type="com.ruoyi.workorder.domain.model.WorkOrderEvaluation">
+        <id property="id" column="id"/>
+        <result property="orderId" column="order_id"/>
+        <result property="evaluatorId" column="evaluator_id"/>
+        <result property="overallScore" column="overall_score"/>
+        <result property="responseScore" column="response_score"/>
+        <result property="qualityScore" column="quality_score"/>
+        <result property="attitudeScore" column="attitude_score"/>
+        <result property="evaluationContent" column="evaluation_content"/>
+        <result property="evaluatedAt" column="evaluated_at"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <!-- uk_wo_evaluation_order is the database-level final guard for one evaluation per order. -->
+    <insert id="insert" parameterType="com.ruoyi.workorder.domain.model.WorkOrderEvaluation"
+            useGeneratedKeys="true" keyProperty="id">
+        insert into wo_evaluation
+        (order_id, evaluator_id, overall_score, response_score, quality_score, attitude_score,
+         evaluation_content, evaluated_at, create_time)
+        values
+        (#{orderId}, #{evaluatorId}, #{overallScore}, #{responseScore}, #{qualityScore}, #{attitudeScore},
+         #{evaluationContent}, #{evaluatedAt}, #{createTime})
+    </insert>
+
+    <select id="selectByOrderId" parameterType="Long" resultMap="EvaluationResult">
+        select id, order_id, evaluator_id, overall_score, response_score, quality_score, attitude_score,
+               evaluation_content, evaluated_at, create_time
+        from wo_evaluation where order_id = #{orderId} limit 1
+    </select>
+</mapper>

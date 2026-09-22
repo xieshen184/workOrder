@@ -1,0 +1,47 @@
+# 本地联调配置：默认连接 localhost 上的 MySQL/MariaDB 和 Redis。
+# 所有敏感项都可通过环境变量覆盖，不要在此文件提交真实环境密码。
+spring:
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driverClassName: com.mysql.cj.jdbc.Driver
+    druid:
+      master:
+        url: ${DB_URL:jdbc:mysql://localhost:3306/workorder?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai}
+        username: ${DB_USERNAME:workorder}
+        password: ${DB_PASSWORD:workorder123}
+      slave:
+        enabled: false
+        url:
+        username:
+        password:
+      initialSize: 2
+      minIdle: 2
+      maxActive: 10
+      maxWait: 60000
+      connectTimeout: 10000
+      socketTimeout: 30000
+      timeBetweenEvictionRunsMillis: 60000
+      minEvictableIdleTimeMillis: 300000
+      maxEvictableIdleTimeMillis: 900000
+      validationQuery: SELECT 1
+      testWhileIdle: true
+      testOnBorrow: false
+      testOnReturn: false
+      webStatFilter:
+        enabled: true
+      statViewServlet:
+        enabled: true
+        allow: 127.0.0.1
+        url-pattern: /druid/*
+        login-username: ${DRUID_USERNAME:ruoyi}
+        login-password: ${DRUID_PASSWORD:123456}
+      filter:
+        stat:
+          enabled: true
+          log-slow-sql: true
+          slow-sql-millis: 1000
+          merge-sql: true
+        wall:
+          config:
+            multi-statement-allow: true
+

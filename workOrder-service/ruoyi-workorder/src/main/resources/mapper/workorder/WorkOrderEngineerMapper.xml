@@ -1,0 +1,91 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.workorder.mapper.WorkOrderEngineerMapper">
+    <resultMap id="EngineerResult" type="com.ruoyi.workorder.domain.model.WorkOrderEngineer">
+        <id property="id" column="id"/><result property="name" column="name"/>
+        <result property="deptId" column="dept_id"/><result property="dept" column="dept"/>
+        <result property="dutyStatus" column="duty_status"/><result property="status" column="work_status"/>
+        <result property="load" column="load_count"/><result property="currentOrderId" column="current_order_id"/>
+        <result property="overdueOrderCount" column="overdue_order_count"/>
+        <result property="statusSource" column="status_source"/>
+        <result property="lastChangedAt" column="last_changed_at"/>
+        <result property="lastHeartbeatAt" column="last_heartbeat_at"/>
+        <result property="updateTime" column="update_time"/><result property="online" column="online"/>
+    </resultMap>
+    <sql id="engineerSelect">
+        select u.user_id id, coalesce(nullif(u.nick_name, ''), u.user_name) name,
+               u.dept_id, d.dept_name dept,
+               coalesce(es.duty_status, 'ON_DUTY') duty_status,
+               coalesce(es.work_status, 'AVAILABLE') work_status,
+               coalesce(active_orders.load_count, 0) load_count,
+               es.current_order_id,
+               coalesce(active_orders.overdue_count, 0) overdue_order_count,
+               coalesce(es.status_source, 'AUTO') status_source,
+               es.last_changed_at, es.last_heartbeat_at, es.update_time,
+               case when es.last_heartbeat_at is not null
+                          and es.last_heartbeat_at &gt;= date_sub(now(), interval 5 minute)
+                    then 1 else 0 end online
+        from sys_user u
+        left join sys_dept d on d.dept_id = u.dept_id and d.status = '0' and d.del_flag = '0'
+        left join wo_engineer_status es on es.engineer_id = u.user_id
+        left join (
+            select current_assignee_id engineer_id, count(*) load_count,
+                   sum(case when overdue_flag = '1' then 1 else 0 end) overdue_count
+            from wo_order
+            where del_flag = '0' and status in ('WAIT_ACCEPT', 'ACCEPTED', 'PROCESSING', 'WAIT_CONFIRM')
+            group by current_assignee_id
+        ) active_orders on active_orders.engineer_id = u.user_id
+        where u.status = '0' and u.del_flag = '0'
+          and exists (
+              select 1 from sys_user_role ur join sys_role r on r.role_id = ur.role_id
+              where ur.user_id = u.user_id and r.role_key = 'workorder_engineer'
+                and r.status = '0' and r.del_flag = '0'
+          )
+    </sql>
+    <select id="selectById" parameterType="Long" resultMap="EngineerResult">
+        <include refid="engineerSelect"/> and u.user_id = #{id} limit 1
+    </select>
+    <select id="selectEligibleById" parameterType="Long" resultMap="EngineerResult">
+        <include refid="engineerSelect"/>
+        and u.user_id = #{id}
+        and coalesce(es.duty_status, 'ON_DUTY') = 'ON_DUTY'
+        limit 1
+    </select>
+    <select id="selectList" resultMap="EngineerResult">
+        <include refid="engineerSelect"/>
+        <if test="keyword != null and keyword != ''">
+            and (u.user_name like concat('%', #{keyword}, '%')
+              or u.nick_name like concat('%', #{keyword}, '%')
+              or d.dept_name like concat('%', #{keyword}, '%'))
+        </if>
+        <if test="deptId != null">and u.dept_id = #{deptId}</if>
+        <if test="dutyStatus != null and dutyStatus != ''">
+            and coalesce(es.duty_status, 'ON_DUTY') = #{dutyStatus}
+        </if>
+        <if test="workStatus != null and workStatus != ''">
+            and coalesce(es.work_status, 'AVAILABLE') = #{workStatus}
+        </if>
+        <if test="online != null and online">
+            and es.last_heartbeat_at is not null and es.last_heartbeat_at &gt;= date_sub(now(), interval 5 minute)
+        </if>
+        <if test="online != null and online == false">
+            and (es.last_heartbeat_at is null or es.last_heartbeat_at &lt; date_sub(now(), interval 5 minute))
+        </if>
+        order by online desc, load_count, name, id
+    </select>
+
+    <insert id="upsertStatus">
+        insert into wo_engineer_status
+        (engineer_id, engineer_name, engineer_dept_id, duty_status, work_status,
+         current_order_id, active_order_count, overdue_order_count, status_source,
+         last_changed_at, last_heartbeat_at, update_time)
+        values
+        (#{engineerId}, #{engineerName}, #{engineerDeptId}, #{dutyStatus}, #{workStatus},
+         null, 0, 0, 'MANUAL', #{changedAt}, #{changedAt}, #{changedAt})
+        on duplicate key update
+          engineer_name = values(engineer_name), engineer_dept_id = values(engineer_dept_id),
+          duty_status = values(duty_status), work_status = values(work_status),
+          status_source = 'MANUAL', last_changed_at = values(last_changed_at),
+          last_heartbeat_at = values(last_heartbeat_at), update_time = values(update_time)
+    </insert>
+</mapper>

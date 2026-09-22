@@ -1,0 +1,10 @@
+.git
+.idea
+.vscode
+**/target
+logs
+uploadPath
+ruoyi-ui
+doc
+*.log
+

@@ -1,0 +1,46 @@
+# 生产配置只接受外部环境变量，不在仓库中保存数据库凭据。
+spring:
+  datasource:
+    type: com.alibaba.druid.pool.DruidDataSource
+    driverClassName: com.mysql.cj.jdbc.Driver
+    druid:
+      master:
+        url: ${DB_URL}
+        username: ${DB_USERNAME}
+        password: ${DB_PASSWORD}
+      slave:
+        enabled: ${DB_SLAVE_ENABLED:false}
+        url: ${DB_SLAVE_URL:}
+        username: ${DB_SLAVE_USERNAME:}
+        password: ${DB_SLAVE_PASSWORD:}
+      initialSize: ${DB_POOL_INITIAL_SIZE:5}
+      minIdle: ${DB_POOL_MIN_IDLE:10}
+      maxActive: ${DB_POOL_MAX_ACTIVE:20}
+      maxWait: 60000
+      connectTimeout: 30000
+      socketTimeout: 60000
+      timeBetweenEvictionRunsMillis: 60000
+      minEvictableIdleTimeMillis: 300000
+      maxEvictableIdleTimeMillis: 900000
+      validationQuery: SELECT 1
+      testWhileIdle: true
+      testOnBorrow: false
+      testOnReturn: false
+      webStatFilter:
+        enabled: true
+      statViewServlet:
+        enabled: ${DRUID_ENABLED:false}
+        allow: ${DRUID_ALLOW:127.0.0.1}
+        url-pattern: /druid/*
+        login-username: ${DRUID_USERNAME:}
+        login-password: ${DRUID_PASSWORD:}
+      filter:
+        stat:
+          enabled: true
+          log-slow-sql: true
+          slow-sql-millis: 1000
+          merge-sql: true
+        wall:
+          config:
+            multi-statement-allow: false
+

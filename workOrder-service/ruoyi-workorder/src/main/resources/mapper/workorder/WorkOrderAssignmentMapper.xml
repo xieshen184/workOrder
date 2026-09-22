@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.workorder.mapper.WorkOrderAssignmentMapper">
+    <insert id="insert" parameterType="com.ruoyi.workorder.domain.model.WorkOrderAssignment" useGeneratedKeys="true" keyProperty="id">
+        insert into wo_assignment
+        (order_id, engineer_id, engineer_name, engineer_dept_id, assigned_by, assigned_by_name,
+         assigned_at, response_minutes, response_deadline, assignment_status, create_time)
+        values (#{orderId}, #{engineerId}, #{engineerName}, #{engineerDeptId}, #{assignedBy},
+         #{assignedByName}, #{assignedAt}, #{responseMinutes}, #{responseDeadline}, #{assignmentStatus}, #{createTime})
+    </insert>
+    <update id="closeActive">
+        update wo_assignment set assignment_status = 'REASSIGNED', ended_at = #{endedAt}, return_reason = #{reason}
+        where order_id = #{orderId} and assignment_status in ('ACTIVE', 'ACCEPTED')
+    </update>
+    <update id="markAccepted">
+        update wo_assignment set assignment_status = 'ACCEPTED', accepted_at = #{acceptedAt}
+        where order_id = #{orderId} and engineer_id = #{engineerId} and assignment_status = 'ACTIVE'
+    </update>
+</mapper>

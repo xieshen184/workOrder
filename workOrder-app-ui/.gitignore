@@ -1,0 +1,21 @@
+######################################################################
+# Build Tools
+
+/unpackage/*
+/node_modules/*
+
+######################################################################
+# Development Tools
+
+/.idea/*
+/.vscode/*
+/.hbuilderx/*
+
+package-lock.json
+yarn.lock
+
+# Local environment values
+.env
+.env.*
+!.env.example
+

@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.workorder.mapper.WorkOrderActionLogMapper">
+    <resultMap id="ActionLogResult" type="com.ruoyi.workorder.domain.model.WorkOrderActionLog">
+        <id property="id" column="id"/><result property="orderId" column="order_id"/>
+        <result property="actionType" column="action_type"/><result property="fromStatus" column="from_status"/>
+        <result property="toStatus" column="to_status"/><result property="operatorId" column="operator_id"/>
+        <result property="operatorName" column="operator_name"/><result property="operatorRole" column="operator_role"/>
+        <result property="actionContent" column="action_content"/><result property="extJson" column="ext_json"/>
+        <result property="idempotencyKey" column="idempotency_key"/><result property="actionTime" column="action_time"/>
+    </resultMap>
+    <insert id="insert" parameterType="com.ruoyi.workorder.domain.model.WorkOrderActionLog" useGeneratedKeys="true" keyProperty="id">
+        insert into wo_action_log
+        (order_id, action_type, from_status, to_status, operator_id, operator_name, operator_role,
+         action_content, ext_json, idempotency_key, action_time)
+        values
+        (#{orderId}, #{actionType}, #{fromStatus}, #{toStatus}, #{operatorId}, #{operatorName}, #{operatorRole},
+         #{actionContent}, cast(#{extJson} as json), #{idempotencyKey}, #{actionTime})
+    </insert>
+    <select id="selectByIdempotency" resultMap="ActionLogResult">
+        select id, order_id, action_type, from_status, to_status, operator_id, operator_name, operator_role,
+               action_content, cast(ext_json as char) ext_json, idempotency_key, action_time
+        from wo_action_log where operator_id = #{operatorId} and action_type = #{actionType}
+          and idempotency_key = #{idempotencyKey} limit 1
+    </select>
+    <select id="selectByOrderId" parameterType="Long" resultMap="ActionLogResult">
+        select id, order_id, action_type, from_status, to_status, operator_id, operator_name, operator_role,
+               action_content, cast(ext_json as char) ext_json, idempotency_key, action_time
+        from wo_action_log where order_id = #{orderId} order by action_time, id
+    </select>
+</mapper>
