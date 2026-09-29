@@ -1,18 +1,21 @@
+# 本地开发 Compose：MySQL、Redis 和后端均在本机 Docker 网络中运行。
 services:
   mysql:
     image: mysql:8.0
     container_name: workorder-mysql
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: workorder
-      MYSQL_ROOT_PASSWORD: password
-      TZ: Asia/Shanghai
+      MYSQL_DATABASE: "${MYSQL_DATABASE:-workorder}"
+      MYSQL_USER: "${MYSQL_USER:?Set MYSQL_USER in .env}"
+      MYSQL_PASSWORD: "${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}"
+      MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}"
+      TZ: "${TZ:-Asia/Shanghai}"
     command:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
       - --default-time-zone=+08:00
     ports:
-      - "3306:3306"
+      - "${MYSQL_BIND_ADDRESS:-127.0.0.1}:${MYSQL_HOST_PORT:-3306}:3306"
     volumes:
       - workorder_mysql_data:/var/lib/mysql
       - ./sql/ry_20250522.sql:/docker-entrypoint-initdb.d/01-ruoyi.sql:ro
@@ -23,8 +26,13 @@ services:
       - ./sql/06_workorder_role_grant.sql:/docker-entrypoint-initdb.d/06-workorder-role-grant.sql:ro
       - ./sql/07_workorder_seed.sql:/docker-entrypoint-initdb.d/07-workorder-seed.sql:ro
       - ./sql/08_workorder_m1_core_adjust.sql:/docker-entrypoint-initdb.d/08-workorder-m1-core-adjust.sql:ro
+      - ./sql/09_workorder_m1_b02.sql:/docker-entrypoint-initdb.d/09-workorder-m1-b02.sql:ro
+      - ./sql/10_workorder_m1_d03.sql:/docker-entrypoint-initdb.d/10-workorder-m1-d03.sql:ro
+      - ./sql/11_workorder_f01_sla_delay.sql:/docker-entrypoint-initdb.d/11-workorder-f01-sla-delay.sql:ro
+      - ./sql/12_workorder_f02_notification.sql:/docker-entrypoint-initdb.d/12-workorder-f02-notification.sql:ro
+      - ./sql/13_workorder_f04_operations.sql:/docker-entrypoint-initdb.d/13-workorder-f04-operations.sql:ro
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-ppassword"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u\"$${MYSQL_USER}\" -p\"$${MYSQL_PASSWORD}\" --silent"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -34,7 +42,7 @@ services:
     container_name: workorder-redis
     restart: unless-stopped
     ports:
-      - "6379:6379"
+      - "${REDIS_BIND_ADDRESS:-127.0.0.1}:${REDIS_HOST_PORT:-6379}:6379"
     volumes:
       - workorder_redis_data:/data
     healthcheck:
@@ -49,20 +57,26 @@ services:
     container_name: workorder-service
     restart: unless-stopped
     environment:
-      SPRING_PROFILES_ACTIVE: prod
-      DB_URL: jdbc:mysql://mysql:3306/workorder?useUnicode=true&characterEncoding=utf8&zeroDateTimeBehavior=convertToNull&useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai
-      DB_USERNAME: root
-      DB_PASSWORD: password
+      SPRING_PROFILES_ACTIVE: local
+      DB_URL: "${DB_URL:?Set DB_URL in .env}"
+      DB_USERNAME: "${MYSQL_USER:?Set MYSQL_USER in .env}"
+      DB_PASSWORD: "${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}"
       REDIS_HOST: redis
       REDIS_PORT: 6379
-      TOKEN_SECRET: replace-this-with-a-long-random-secret-before-production
-      SWAGGER_ENABLED: "true"
+      REDIS_DATABASE: "${REDIS_DATABASE:-0}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:-}"
+      TOKEN_SECRET: "${TOKEN_SECRET:?Set TOKEN_SECRET in .env}"
+      SWAGGER_ENABLED: "${SWAGGER_ENABLED:?Set SWAGGER_ENABLED in .env}"
+      DRUID_ENABLED: "${DRUID_ENABLED:-false}"
+      DEVTOOLS_ENABLED: "${DEVTOOLS_ENABLED:-false}"
       WORKORDER_UPLOAD_PATH: /data/workorder/upload
-      TZ: Asia/Shanghai
+      WORKORDER_NOTIFICATION_BATCH_SIZE: 50
+      TZ: "${TZ:-Asia/Shanghai}"
     ports:
-      - "8080:8080"
+      - "${BACKEND_BIND_ADDRESS:-127.0.0.1}:${BACKEND_HOST_PORT:-8080}:8080"
     volumes:
       - workorder_upload_data:/data/workorder/upload
+      - workorder_log_data:/var/log/workorder
     depends_on:
       mysql:
         condition: service_healthy
@@ -73,3 +87,4 @@ volumes:
   workorder_mysql_data:
   workorder_redis_data:
   workorder_upload_data:
+  workorder_log_data:

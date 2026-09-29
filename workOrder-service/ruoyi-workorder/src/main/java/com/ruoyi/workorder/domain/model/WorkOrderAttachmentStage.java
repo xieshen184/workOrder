@@ -9,6 +9,7 @@ public enum WorkOrderAttachmentStage
     SUBMIT(null),
     ARRIVAL("workorder:order:arrive"),
     PROCESS("workorder:order:progress"),
+    DELAY("workorder:delay:add"),
     FINISH("workorder:order:finish");
 
     private final String permission;
@@ -27,7 +28,7 @@ public enum WorkOrderAttachmentStage
         }
         catch (IllegalArgumentException error)
         {
-            throw new ServiceException("附件阶段仅支持SUBMIT/ARRIVAL/PROCESS/FINISH", HttpStatus.BAD_REQUEST);
+            throw new ServiceException("附件阶段仅支持SUBMIT/ARRIVAL/PROCESS/DELAY/FINISH", HttpStatus.BAD_REQUEST);
         }
     }
 

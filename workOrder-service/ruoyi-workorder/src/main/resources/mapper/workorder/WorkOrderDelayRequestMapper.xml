@@ -1,0 +1,151 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.workorder.mapper.WorkOrderDelayRequestMapper">
+    <!--
+        F01 SQL 使用 engineer/request_reason/status/decided_* 命名；结果别名统一成领域对象
+        的 applicant/reason/requestStatus/approver 属性，避免 Controller 感知表结构细节。
+    -->
+    <resultMap id="DelayRequestResult" type="com.ruoyi.workorder.domain.model.WorkOrderDelayRequest">
+        <id property="id" column="id"/>
+        <result property="orderId" column="order_id"/>
+        <result property="orderNo" column="order_no"/>
+        <result property="orderTitle" column="order_title"/>
+        <result property="applicantId" column="applicant_id"/>
+        <result property="applicantName" column="applicant_name"/>
+        <result property="originalDeadline" column="original_deadline"/>
+        <result property="requestedDeadline" column="requested_deadline"/>
+        <result property="reason" column="reason"/>
+        <result property="requestStatus" column="request_status"/>
+        <result property="approverId" column="approver_id"/>
+        <result property="approverName" column="approver_name"/>
+        <result property="approvalComment" column="approval_comment"/>
+        <result property="approvedAt" column="approved_at"/>
+        <result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+        <collection property="attachmentIds" ofType="long" column="id"
+                    select="selectAttachmentIdsByRequestId"/>
+    </resultMap>
+
+    <sql id="columns">
+        r.id, r.order_id, r.order_no, r.order_title,
+        r.engineer_id applicant_id, r.engineer_name applicant_name,
+        r.original_deadline, r.requested_deadline, r.request_reason reason,
+        r.status request_status, r.decided_by approver_id,
+        r.decided_by_name approver_name, r.decision_reason approval_comment,
+        r.decided_at approved_at, r.create_time, r.update_time
+    </sql>
+
+    <insert id="insert" parameterType="com.ruoyi.workorder.domain.model.WorkOrderDelayRequest"
+            useGeneratedKeys="true" keyProperty="id">
+        insert into wo_delay_request
+        (order_id, order_no, order_title, engineer_id, engineer_name,
+         original_deadline, requested_deadline, request_reason, status, create_time, update_time)
+        values
+        (#{orderId}, #{orderNo}, #{orderTitle}, #{applicantId}, #{applicantName},
+         #{originalDeadline}, #{requestedDeadline}, #{reason}, #{requestStatus}, #{createTime}, #{updateTime})
+    </insert>
+
+    <select id="selectById" parameterType="Long" resultMap="DelayRequestResult">
+        select <include refid="columns"/> from wo_delay_request r where r.id = #{id}
+    </select>
+
+    <select id="selectByIdForUpdate" parameterType="Long" resultMap="DelayRequestResult">
+        select <include refid="columns"/> from wo_delay_request r where r.id = #{id} for update
+    </select>
+
+    <select id="selectLatestByOrderId" parameterType="Long" resultMap="DelayRequestResult">
+        select <include refid="columns"/> from wo_delay_request r
+        where r.order_id = #{orderId}
+        order by r.create_time desc, r.id desc
+        limit 1
+    </select>
+
+    <select id="selectPendingByOrderId" parameterType="Long" resultMap="DelayRequestResult">
+        select <include refid="columns"/> from wo_delay_request r
+        where r.order_id = #{orderId} and r.status = 'PENDING'
+        order by r.create_time desc, r.id desc
+        limit 1
+    </select>
+
+    <select id="selectList" parameterType="com.ruoyi.workorder.application.model.WorkOrderDelayRequestQuery"
+            resultMap="DelayRequestResult">
+        select <include refid="columns"/>
+        from wo_delay_request r
+        join wo_order o on o.id = r.order_id and o.del_flag = '0'
+        left join sys_user u on u.user_id = o.applicant_id
+        left join sys_dept d on d.dept_id = o.applicant_dept_id
+        <where>
+            <if test="orderId != null">and r.order_id = #{orderId}</if>
+            <if test="applicantId != null">and r.engineer_id = #{applicantId}</if>
+            <if test="requestStatus != null and requestStatus != ''">and r.status = #{requestStatus}</if>
+            <if test="(requestStatus == null or requestStatus == '') and status != null and status != ''">
+                and r.status = #{status}
+            </if>
+            <if test="keyword != null and keyword != ''">
+                and (r.order_no like concat('%', #{keyword}, '%')
+                  or r.order_title like concat('%', #{keyword}, '%')
+                  or r.engineer_name like concat('%', #{keyword}, '%'))
+            </if>
+            ${params.dataScope}
+        </where>
+        order by r.create_time desc, r.id desc
+    </select>
+
+    <!-- 只允许当前上传者绑定仍处于临时 DELAY 阶段的附件，防止借用他人或已绑定附件。 -->
+    <update id="bindAttachments">
+        update wo_attachment
+        set order_id = #{orderId}, biz_ref_id = #{requestId}
+        where uploader_id = #{uploaderId} and order_id is null and biz_ref_id is null
+          and biz_stage = 'DELAY' and del_flag = '0'
+          and id in
+        <foreach collection="ids" item="id" open="(" separator="," close=")">#{id}</foreach>
+    </update>
+
+    <!-- 工单行先加锁，再由版本条件做 CAS；该标志变化会让同一工单的第二个申请失败。 -->
+    <update id="markDelayPending">
+        update wo_order
+        set delay_pending_flag = '1', version = version + 1,
+            update_by = #{updateBy}, update_time = #{actionTime}
+        where id = #{orderId} and status = 'PROCESSING' and version = #{version}
+          and delay_pending_flag = '0' and del_flag = '0'
+    </update>
+
+    <!-- 同意延期才写 extension_deadline；finish_deadline 原始 SLA 快照保持不变。 -->
+    <update id="applyApprovedDelay">
+        update wo_order
+        set extension_deadline = #{requestedDeadline}, delay_pending_flag = '0', version = version + 1,
+            update_by = #{updateBy}, update_time = #{actionTime}
+        where id = #{orderId} and status = 'PROCESSING' and version = #{version}
+          and delay_pending_flag = '1' and del_flag = '0'
+    </update>
+
+    <!-- 拒绝操作不写 extension_deadline，保证原有效截止时间不变。 -->
+    <update id="clearDelayPending">
+        update wo_order
+        set delay_pending_flag = '0', version = version + 1,
+            update_by = #{updateBy}, update_time = #{actionTime}
+        where id = #{orderId} and version = #{version}
+          and delay_pending_flag = '1' and del_flag = '0'
+    </update>
+
+    <!-- 申请行状态 CAS 是数据库层面对重复审批的最后一道防线。 -->
+    <update id="updateDecision">
+        update wo_delay_request
+        set status = #{requestStatus}, decided_by = #{approverId}, decided_by_name = #{approverName},
+            decision_reason = #{approvalComment}, decided_at = #{approvedAt}, update_time = #{updateTime}
+        where id = #{id} and status = 'PENDING'
+    </update>
+
+    <update id="cancelPendingByOrderId">
+        update wo_delay_request
+        set status = 'CANCELLED', decided_by = #{operatorId}, decided_by_name = #{operatorName},
+            decision_reason = #{reason}, decided_at = #{actionTime}, update_time = #{actionTime}
+        where order_id = #{orderId} and status = 'PENDING'
+    </update>
+
+    <select id="selectAttachmentIdsByRequestId" parameterType="Long" resultType="long">
+        select id from wo_attachment
+        where biz_ref_id = #{requestId} and order_id is not null and del_flag = '0'
+        order by create_time, id
+    </select>
+</mapper>

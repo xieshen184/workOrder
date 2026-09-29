@@ -39,6 +39,20 @@ public class WorkOrderAllowedActionResolverTest
         assertFalse(resolver.resolve(order, actor(13L)).contains("ACCEPT"));
     }
 
+    @Test
+    public void currentAssigneeCanOpenPendingDelayForViewingButCannotWhenSlaDisallowsIt()
+    {
+        WorkOrder order = order("PROCESSING", 7L, 12L);
+        order.setSlaAllowExtension("1");
+        order.setDelayPendingFlag("1");
+        WorkOrderActor engineer = new WorkOrderActor(12L, "engineer", "Engineer", null,
+                1L, "Dept", new HashSet<String>(Arrays.asList("workorder:delay:add")));
+        assertTrue(resolver.resolve(order, engineer).contains("REQUEST_DELAY"));
+
+        order.setSlaAllowExtension("0");
+        assertFalse(resolver.resolve(order, engineer).contains("REQUEST_DELAY"));
+    }
+
     private WorkOrder order(String status, Long applicantId, Long assigneeId)
     {
         WorkOrder order = new WorkOrder();

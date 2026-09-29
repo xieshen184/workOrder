@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.workorder.mapper.WorkOrderSmsAccountMapper">
+    <resultMap id="AccountResult" type="com.ruoyi.workorder.domain.model.WorkOrderSmsAccount">
+        <result property="configured" column="configured_flag" javaType="boolean"/>
+        <result property="providerName" column="provider_name"/>
+        <result property="accountAlias" column="account_alias"/>
+        <result property="maskedCredential" column="credential_mask"/>
+        <result property="status" column="account_status"/>
+        <result property="availableBalance" column="available_balance"/>
+        <result property="warningThreshold" column="warning_threshold"/>
+        <result property="retryEnabled" column="retry_enabled" javaType="boolean"/>
+        <result property="lastSuccessTime" column="last_success_time"/>
+        <result property="lastError" column="last_error"/>
+    </resultMap>
+
+    <select id="selectAccount" resultMap="AccountResult">
+        select configured_flag,
+               case when configured_flag = '1' then provider_name else '未配置' end provider_name,
+               account_alias, credential_mask,
+               case when configured_flag = '1' then account_status else 'UNCONFIGURED' end account_status,
+               available_balance, warning_threshold, retry_enabled, last_success_time, last_error
+        from wo_sms_account_setting where id = 1
+    </select>
+
+    <select id="selectSendStatistics" resultType="java.util.HashMap">
+        select
+            coalesce(sum(case when status = 'SUCCESS' and sent_at &gt;= current_date()
+                              and sent_at &lt; date_add(current_date(), interval 1 day) then 1 else 0 end), 0) todaySent,
+            coalesce(sum(case when status in ('RETRY','DEAD') and update_time &gt;= current_date()
+                              and update_time &lt; date_add(current_date(), interval 1 day) then 1 else 0 end), 0) todayFailed,
+            coalesce(sum(case when status = 'SUCCESS' and sent_at &gt;= date_format(current_date(), '%Y-%m-01')
+                              and sent_at &lt; date_add(last_day(current_date()), interval 1 day) then 1 else 0 end), 0) monthSent
+        from wo_notification_task where channel = 'SMS'
+    </select>
+
+    <update id="updateSettings">
+        update wo_sms_account_setting
+        set warning_threshold = #{warningThreshold}, retry_enabled = #{retryEnabled},
+            update_by = #{updateBy}, update_time = #{updateTime}
+        where id = 1
+    </update>
+</mapper>

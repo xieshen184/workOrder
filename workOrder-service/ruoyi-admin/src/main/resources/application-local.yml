@@ -30,11 +30,11 @@ spring:
       webStatFilter:
         enabled: true
       statViewServlet:
-        enabled: true
+        enabled: ${DRUID_ENABLED:false}
         allow: 127.0.0.1
         url-pattern: /druid/*
-        login-username: ${DRUID_USERNAME:ruoyi}
-        login-password: ${DRUID_PASSWORD:123456}
+        login-username: ${DRUID_USERNAME:}
+        login-password: ${DRUID_PASSWORD:}
       filter:
         stat:
           enabled: true
@@ -45,3 +45,5 @@ spring:
           config:
             multi-statement-allow: true
 
+swagger:
+  enabled: ${SWAGGER_ENABLED:true}

@@ -1,4 +1,4 @@
-# 生产配置只接受外部环境变量，不在仓库中保存数据库凭据。
+# 生产配置只接受外部环境变量，不在仓库内保存数据库、缓存和令牌凭据。
 spring:
   datasource:
     type: com.alibaba.druid.pool.DruidDataSource
@@ -27,10 +27,10 @@ spring:
       testOnBorrow: false
       testOnReturn: false
       webStatFilter:
-        enabled: true
+        enabled: false
       statViewServlet:
-        enabled: ${DRUID_ENABLED:false}
-        allow: ${DRUID_ALLOW:127.0.0.1}
+        enabled: false
+        allow: 127.0.0.1
         url-pattern: /druid/*
         login-username: ${DRUID_USERNAME:}
         login-password: ${DRUID_PASSWORD:}
@@ -44,3 +44,31 @@ spring:
           config:
             multi-statement-allow: false
 
+  redis:
+    host: ${REDIS_HOST}
+    port: ${REDIS_PORT:6379}
+    database: ${REDIS_DATABASE:0}
+    password: ${REDIS_PASSWORD}
+    timeout: ${REDIS_TIMEOUT:10s}
+
+  devtools:
+    restart:
+      enabled: false
+
+ruoyi:
+  profile: ${WORKORDER_UPLOAD_PATH}
+
+token:
+  secret: ${TOKEN_SECRET}
+
+swagger:
+  enabled: false
+
+logging:
+  level:
+    com.ruoyi: info
+    org.springframework: warn
+
+security:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS}

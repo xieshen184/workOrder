@@ -92,16 +92,19 @@ const user = {
     // 退出系统
     LogOut({ commit, state }) {
       return new Promise((resolve, reject) => {
-        logout(state.token).then(() => {
+        // 无论服务端令牌注销是否成功，都必须清除本机身份；否则断网时会把用户困在假登录状态。
+        const clearLocalIdentity = () => {
           commit('SET_TOKEN', '')
+          commit('SET_ID', '')
+          commit('SET_NAME', '')
+          commit('SET_AVATAR', '')
           commit('SET_ROLES', [])
           commit('SET_PERMISSIONS', [])
           removeToken()
           storage.clean()
           resolve()
-        }).catch(error => {
-          reject(error)
-        })
+        }
+        logout(state.token).then(clearLocalIdentity).catch(clearLocalIdentity)
       })
     }
   }

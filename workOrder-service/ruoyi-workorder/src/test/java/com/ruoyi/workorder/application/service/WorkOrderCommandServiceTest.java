@@ -125,7 +125,7 @@ public class WorkOrderCommandServiceTest
     {
         private final List<String> calls;
         StubTransaction(List<String> calls)
-        { super(null, null, null, null, null, null, null); this.calls = calls; }
+        { super(null, null, null, null, null, null, null, null); this.calls = calls; }
         @Override public WorkOrderCommandResult execute(WorkOrderCommand command, WorkOrderActor actor)
         { calls.add("transaction"); return null; }
     }

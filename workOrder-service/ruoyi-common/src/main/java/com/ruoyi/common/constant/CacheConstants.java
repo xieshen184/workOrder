@@ -41,4 +41,12 @@ public class CacheConstants
      * 登录账户密码错误次数 redis key
      */
     public static final String PWD_ERR_CNT_KEY = "pwd_err_cnt:";
+
+    /**
+     * 个人中心修改密码时的旧密码错误次数。
+     *
+     * <p>该键必须与登录失败计数隔离，避免用户在已登录页面输错旧密码后，
+     * 同时触发登录锁定。</p>
+     */
+    public static final String PROFILE_PWD_ERR_CNT_KEY = "profile_pwd_err_cnt:";
 }

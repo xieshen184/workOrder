@@ -392,6 +392,7 @@ export default {
         SUBMIT: '报修提交',
         ARRIVAL: '到场确认',
         PROCESS: '处理过程',
+        DELAY: '延期佐证',
         FINISH: '完工提交',
         EVALUATION: '服务评价'
       }[stage] || stage || '工单附件'

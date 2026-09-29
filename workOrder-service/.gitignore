@@ -43,6 +43,8 @@ logs/
 uploadPath/
 .local-runtime/
 .env
+.env.*
+!.env.example
 *.xml.versionsBackup
 *.swp
 

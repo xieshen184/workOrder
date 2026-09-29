@@ -109,6 +109,21 @@ public class RedisCache
     }
 
     /**
+     * 原子递增一个数值缓存。
+     *
+     * <p>计数器必须在 Redis 端完成递增，不能使用“读取后再写回”，否则并发请求
+     * 会互相覆盖。本方法只负责递增，调用方仍需根据业务设置过期时间。</p>
+     *
+     * @param key 缓存键
+     * @return 递增后的值；Redis 未返回值时按 0 处理
+     */
+    public long incrementCacheValue(final String key)
+    {
+        Long value = redisTemplate.opsForValue().increment(key);
+        return value == null ? 0L : value.longValue();
+    }
+
+    /**
      * 删除单个对象
      *
      * @param key

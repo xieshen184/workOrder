@@ -20,6 +20,11 @@ server:
   servlet:
     # 应用的访问路径
     context-path: /
+  # 生产和测试环境都不把内部异常、绑定错误或堆栈直接返回客户端。
+  error:
+    include-message: never
+    include-binding-errors: never
+    include-stacktrace: never
   tomcat:
     # tomcat的URI编码
     uri-encoding: UTF-8
@@ -34,7 +39,7 @@ server:
 # 日志配置
 logging:
   level:
-    com.ruoyi: debug
+    com.ruoyi: info
     org.springframework: warn
 
 # 用户配置
@@ -64,11 +69,11 @@ spring:
   devtools:
     restart:
       # 热部署开关
-      enabled: true
+      enabled: ${DEVTOOLS_ENABLED:true}
   # redis 配置
   redis:
     # 地址
-    host: ${REDIS_HOST:10.129.76.140}
+    host: ${REDIS_HOST:localhost}
     # 端口，默认为6379
     port: ${REDIS_PORT:6379}
     # 数据库索引
@@ -115,7 +120,7 @@ pagehelper:
 # Swagger配置
 swagger:
   # 是否开启swagger
-  enabled: ${SWAGGER_ENABLED:true}
+  enabled: ${SWAGGER_ENABLED:false}
   # 请求前缀
   pathMapping: /dev-api
 
@@ -127,3 +132,19 @@ xss:
   excludes: /system/notice
   # 匹配链接
   urlPatterns: /system/*,/monitor/*,/tool/*,/workorder/*
+
+# 工单生命周期参数。按自然日计算，调整后只影响下一次自动关闭扫描。
+workorder:
+  auto-close-days: ${WORKORDER_AUTO_CLOSE_DAYS:7}
+  notification:
+    # 每次 Quartz 调用最多领取的任务数；领取使用条件更新，重复调度不会重复生成站内消息。
+    batch-size: ${WORKORDER_NOTIFICATION_BATCH_SIZE:50}
+
+# 浏览器跨域白名单。生产环境必须显式覆盖，配置守卫会拒绝通配来源。
+security:
+  cors:
+    allowed-origins: ${CORS_ALLOWED_ORIGINS:http://localhost,http://localhost:80,http://localhost:1024}
+    allowed-methods: ${CORS_ALLOWED_METHODS:GET,POST,PUT,DELETE,OPTIONS}
+    allowed-headers: ${CORS_ALLOWED_HEADERS:Authorization,Content-Type,X-Requested-With,Idempotency-Key}
+    exposed-headers: ${CORS_EXPOSED_HEADERS:Content-Disposition,download-filename}
+    max-age: ${CORS_MAX_AGE:1800}

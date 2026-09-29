@@ -70,10 +70,14 @@ public final class WorkOrderStateMachine
         register(transitions, WorkOrderStatus.PROCESSING, WorkOrderAction.REASSIGN, WorkOrderStatus.WAIT_ACCEPT);
         register(transitions, WorkOrderStatus.PROCESSING, WorkOrderAction.ASSESS, WorkOrderStatus.PROCESSING);
         register(transitions, WorkOrderStatus.PROCESSING, WorkOrderAction.PROGRESS, WorkOrderStatus.PROCESSING);
+        register(transitions, WorkOrderStatus.PROCESSING, WorkOrderAction.REQUEST_DELAY, WorkOrderStatus.PROCESSING);
+        register(transitions, WorkOrderStatus.PROCESSING, WorkOrderAction.APPROVE_DELAY, WorkOrderStatus.PROCESSING);
+        register(transitions, WorkOrderStatus.PROCESSING, WorkOrderAction.REJECT_DELAY, WorkOrderStatus.PROCESSING);
         register(transitions, WorkOrderStatus.PROCESSING, WorkOrderAction.FINISH, WorkOrderStatus.WAIT_CONFIRM);
         register(transitions, WorkOrderStatus.WAIT_CONFIRM, WorkOrderAction.CONFIRM, WorkOrderStatus.COMPLETED);
         register(transitions, WorkOrderStatus.WAIT_CONFIRM, WorkOrderAction.RETURN, WorkOrderStatus.PROCESSING);
         register(transitions, WorkOrderStatus.COMPLETED, WorkOrderAction.EVALUATE, WorkOrderStatus.CLOSED);
+        register(transitions, WorkOrderStatus.COMPLETED, WorkOrderAction.AUTO_CLOSE, WorkOrderStatus.CLOSED);
 
         for (Map.Entry<WorkOrderStatus, Map<WorkOrderAction, WorkOrderStatus>> entry : transitions.entrySet())
         {

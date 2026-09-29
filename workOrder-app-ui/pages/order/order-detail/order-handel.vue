@@ -184,7 +184,7 @@
             :custom-style="buttonStyle(action)"
             @click="openAction(action)"
           >
-            {{ actionText(action) }}
+            {{ action === 'REQUEST_DELAY' ? delayActionText() : actionText(action) }}
           </u-button>
         </view>
 
@@ -395,7 +395,8 @@ const ACTION_METHODS = {
   ARRIVE: 'arriveOrder',
   ASSESS: 'assessmentOrder',
   PROGRESS: 'progressOrder',
-  FINISH: 'finishOrder'
+  FINISH: 'finishOrder',
+  REQUEST_DELAY: null
 }
 
 const ACTION_STAGES = {
@@ -413,6 +414,7 @@ export default {
       timeline: [],
       loading: true,
       error: '',
+      detailLoaded: false,
       activeAction: '',
       submittingAction: '',
       // One key is retained per open action so a failed submit can be retried safely.
@@ -454,6 +456,12 @@ export default {
     this.loadOrderDetail()
   },
 
+  onShow() {
+    // Returning from M17 must show the latest delay flag, version and actions.
+    // The first onShow follows onLoad, so only refresh after the first load.
+    if (this.detailLoaded && this.orderId && !this.loading) this.loadOrderDetail()
+  },
+
   async onPullDownRefresh() {
     try {
       await this.loadOrderDetail()
@@ -485,6 +493,7 @@ export default {
         this.error = '工单详情加载失败，请重试'
       } finally {
         this.loading = false
+        this.detailLoaded = true
       }
     },
 
@@ -535,8 +544,18 @@ export default {
         ARRIVE: '到场确认',
         ASSESS: '提交评估',
         PROGRESS: '更新进度',
-        FINISH: '提交完工'
+        FINISH: '提交完工',
+        REQUEST_DELAY: '申请延期'
       }[String(action || '').toUpperCase()] || action || '处理'
+    },
+
+    delayActionText() {
+      return this.isDelayPending() ? '查看延期申请' : '申请延期'
+    },
+
+    isDelayPending() {
+      const value = this.order && this.order.delayPendingFlag
+      return value === true || value === 1 || ['1', 'true', 'y', 'yes'].indexOf(String(value || '').toLowerCase()) !== -1
     },
 
     stageText(stage) {
@@ -544,6 +563,7 @@ export default {
         SUBMIT: '报修附件',
         ARRIVAL: '到场附件',
         PROCESS: '过程附件',
+        DELAY: '延期佐证',
         FINISH: '完工附件',
         EVALUATION: '评价附件'
       }[stage] || stage || '附件'
@@ -570,11 +590,24 @@ export default {
     openAction(action) {
       const normalized = String(action || '').toUpperCase()
       if (this.submittingAction || !this.isActionAllowed(normalized)) return
+      if (normalized === 'REQUEST_DELAY') {
+        this.openDelayRequest()
+        return
+      }
       if (normalized === 'ACCEPT') {
         this.confirmAccept()
         return
       }
       this.activeAction = normalized
+    },
+
+    openDelayRequest() {
+      if (!this.isActionAllowed('REQUEST_DELAY')) return
+      const pending = this.isDelayPending() ? '&pending=1' : ''
+      uni.navigateTo({
+        url: `/pages/order/delay/index?id=${encodeURIComponent(this.orderId)}${pending}`,
+        fail: () => this.$u.toast('延期申请页面打开失败，请稍后重试')
+      })
     },
 
     confirmAccept() {
@@ -750,6 +783,10 @@ export default {
     async submitAction(action) {
       const normalized = String(action || '').toUpperCase()
       if (this.submittingAction) return
+      if (normalized === 'REQUEST_DELAY') {
+        this.openDelayRequest()
+        return
+      }
       if (!this.isActionAllowed(normalized)) {
         this.$u.toast('工单状态已更新，请刷新后重试')
         await this.loadOrderDetail()

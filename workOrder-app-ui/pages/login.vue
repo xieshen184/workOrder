@@ -41,6 +41,7 @@
 <script>
   import { getCodeImg } from '@/api/login'
   import { getToken } from '@/utils/auth'
+  import { getContentById, getResourceByKey, isTrustedHttpsUrl } from '@/utils/contentRegistry'
 
   export default {
     data() {
@@ -73,22 +74,28 @@
       },
       // 隐私协议
       handlePrivacy() {
-        let site = this.globalConfig.appInfo.agreements[0]
-        this.openAgreement(site)
+        this.openAgreement('privacyPolicy')
       },
       // 用户协议
       handleUserAgrement() {
-        let site = this.globalConfig.appInfo.agreements[1]
-        this.openAgreement(site)
+        this.openAgreement('serviceAgreement')
       },
-      openAgreement(site) {
-        if (!site || !site.url) {
-          this.$modal.msgError('协议内容尚未配置，请联系管理员')
+      openAgreement(resourceKey) {
+        // 登录页同样只传资源键，不能把配置 URL 直接暴露为可修改的路由参数。
+        const resource = getResourceByKey(resourceKey)
+        if (!resource) {
+          this.$modal.msgError('协议内容暂不可用，请联系管理员')
           return
         }
-        const title = encodeURIComponent(site.title || '协议')
-        const url = encodeURIComponent(site.url)
-        this.$tab.navigateTo(`/pages/common/webview/index?title=${title}&url=${url}`)
+        if (resource.url && isTrustedHttpsUrl(resource.url)) {
+          this.$tab.navigateTo(`/pages/common/webview/index?key=${encodeURIComponent(resource.key)}`)
+          return
+        }
+        if (resource.fallbackContentId && getContentById(resource.fallbackContentId)) {
+          this.$tab.navigateTo(`/pages/common/textview/index?id=${encodeURIComponent(resource.fallbackContentId)}`)
+          return
+        }
+        this.$modal.msgError('协议内容暂不可用，请联系管理员')
       },
       // 获取图形验证码
       getCode() {

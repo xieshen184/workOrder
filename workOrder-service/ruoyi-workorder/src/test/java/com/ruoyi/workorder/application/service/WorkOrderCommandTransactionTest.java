@@ -10,6 +10,7 @@ import java.util.Arrays;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import com.alibaba.fastjson2.JSON;
 import com.alibaba.fastjson2.JSONObject;
 import com.ruoyi.common.constant.HttpStatus;
@@ -22,11 +23,13 @@ import com.ruoyi.workorder.domain.model.WorkOrder;
 import com.ruoyi.workorder.domain.model.WorkOrderAction;
 import com.ruoyi.workorder.domain.model.WorkOrderActionLog;
 import com.ruoyi.workorder.domain.model.WorkOrderEvaluation;
+import com.ruoyi.workorder.domain.model.WorkOrderEngineer;
 import com.ruoyi.workorder.domain.model.WorkOrderProcessRecord;
 import com.ruoyi.workorder.domain.model.WorkOrderStatus;
 import com.ruoyi.workorder.mapper.WorkOrderActionLogMapper;
 import com.ruoyi.workorder.mapper.WorkOrderAssignmentMapper;
 import com.ruoyi.workorder.mapper.WorkOrderAttachmentMapper;
+import com.ruoyi.workorder.mapper.WorkOrderDelayRequestMapper;
 import com.ruoyi.workorder.mapper.WorkOrderEngineerMapper;
 import com.ruoyi.workorder.mapper.WorkOrderEvaluationMapper;
 import com.ruoyi.workorder.mapper.WorkOrderMapper;
@@ -141,11 +144,83 @@ public class WorkOrderCommandTransactionTest
         assertEquals(WorkOrderCommandService.hash(command), ext.getString("requestFingerprint"));
     }
 
+    @Test
+    public void finishShouldCancelThePendingDelayInTheSameTransaction()
+    {
+        WorkOrder order = order(WorkOrderStatus.PROCESSING, 3);
+        order.setCurrentAssigneeId(1L);
+        order.setDelayPendingFlag("1");
+        RecordingOrderMapper orders = new RecordingOrderMapper(order);
+        AtomicInteger cancelled = new AtomicInteger();
+        WorkOrderDelayRequestMapper delays = proxy(WorkOrderDelayRequestMapper.class, (method, args) -> {
+            if ("cancelPendingByOrderId".equals(method))
+            {
+                cancelled.incrementAndGet();
+                assertEquals(Long.valueOf(1L), args[0]);
+                assertEquals("工单已完工，待审延期自动取消", args[3]);
+                return 1;
+            }
+            return null;
+        });
+        WorkOrderAttachmentMapper attachments = proxy(WorkOrderAttachmentMapper.class,
+                (method, args) -> "bindToProcess".equals(method) ? ((List<?>) args[4]).size() : null);
+        WorkOrderCommandTransaction transaction = new WorkOrderCommandTransaction(orders,
+                new RecordingActionLogMapper(), noOp(WorkOrderAssignmentMapper.class),
+                new RecordingProcessMapper(), attachments, noOp(WorkOrderEngineerMapper.class),
+                new RecordingEvaluationMapper(), delays);
+
+        transaction.execute(WorkOrderCommand.process(1L, WorkOrderAction.FINISH,
+                "finish-delay-key", 3, "维修完成", Arrays.asList(99L)),
+                actor(1L, "workorder:order:finish"));
+
+        assertEquals(1, cancelled.get());
+        assertEquals("FINISH", orders.actionType);
+    }
+
+    @Test
+    public void reassignShouldCancelThePreviousEngineersPendingDelay()
+    {
+        WorkOrder order = order(WorkOrderStatus.PROCESSING, 3);
+        order.setCurrentAssigneeId(1L);
+        order.setDelayPendingFlag("1");
+        order.setSlaRuleId(8L);
+        order.setSubmittedAt(new Date(1_000L));
+        order.setResponseDeadline(new Date(61_000L));
+        AtomicInteger cancelled = new AtomicInteger();
+        WorkOrderDelayRequestMapper delays = proxy(WorkOrderDelayRequestMapper.class, (method, args) -> {
+            if ("cancelPendingByOrderId".equals(method))
+            {
+                cancelled.incrementAndGet();
+                assertEquals("工单已改派，原处理人的待审延期自动取消", args[3]);
+                return 1;
+            }
+            return null;
+        });
+        WorkOrderEngineer engineer = new WorkOrderEngineer();
+        engineer.setId(2L); engineer.setName("Engineer B"); engineer.setDeptId(2L);
+        WorkOrderEngineerMapper engineers = proxy(WorkOrderEngineerMapper.class,
+                (method, args) -> "selectEligibleById".equals(method) ? engineer : null);
+        WorkOrderAssignmentMapper assignments = proxy(WorkOrderAssignmentMapper.class,
+                (method, args) -> ("closeActive".equals(method) || "insert".equals(method)) ? 1 : null);
+        RecordingOrderMapper orders = new RecordingOrderMapper(order);
+        WorkOrderCommandTransaction transaction = new WorkOrderCommandTransaction(orders,
+                new RecordingActionLogMapper(), assignments, new RecordingProcessMapper(),
+                noOp(WorkOrderAttachmentMapper.class), engineers, new RecordingEvaluationMapper(), delays);
+
+        transaction.execute(WorkOrderCommand.assignment(1L, WorkOrderAction.REASSIGN,
+                "reassign-delay-key", 3, 2L, "人员调整"),
+                actor(9L, "workorder:order:list", "workorder:order:reassign"));
+
+        assertEquals(1, cancelled.get());
+        assertEquals("REASSIGN", orders.actionType);
+    }
+
     private WorkOrderCommandTransaction transaction(WorkOrderMapper orders, WorkOrderActionLogMapper logs,
             WorkOrderEvaluationMapper evaluations, WorkOrderProcessRecordMapper processes)
     {
         return new WorkOrderCommandTransaction(orders, logs, noOp(WorkOrderAssignmentMapper.class), processes,
-                noOp(WorkOrderAttachmentMapper.class), noOp(WorkOrderEngineerMapper.class), evaluations);
+                noOp(WorkOrderAttachmentMapper.class), noOp(WorkOrderEngineerMapper.class), evaluations,
+                noOp(WorkOrderDelayRequestMapper.class));
     }
 
     @SuppressWarnings("unchecked")
@@ -153,6 +228,22 @@ public class WorkOrderCommandTransactionTest
     {
         return (T) Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type },
                 (proxy, method, args) -> method.getReturnType() == Integer.TYPE ? 0 : null);
+    }
+
+    @SuppressWarnings("unchecked")
+    private <T> T proxy(Class<T> type, MethodHandler handler)
+    {
+        return (T) Proxy.newProxyInstance(type.getClassLoader(), new Class<?>[] { type },
+                (proxy, method, args) -> {
+                    Object value = handler.invoke(method.getName(), args);
+                    if (value != null) return value;
+                    return method.getReturnType() == Integer.TYPE ? 0 : null;
+                });
+    }
+
+    private interface MethodHandler
+    {
+        Object invoke(String method, Object[] args);
     }
 
     private WorkOrder order(WorkOrderStatus status, int version)
@@ -184,6 +275,11 @@ public class WorkOrderCommandTransactionTest
         @Override public WorkOrder selectByOrderNo(String orderNo) { return null; }
         @Override public WorkOrder selectScopedById(WorkOrderQuery query) { return null; }
         @Override public List<WorkOrder> selectList(WorkOrderQuery query) { return null; }
+        @Override public List<WorkOrder> selectSlaOpenOrders() { return java.util.Collections.emptyList(); }
+        @Override public List<WorkOrder> selectAutoCloseCandidates(Date before) { return java.util.Collections.emptyList(); }
+        @Override public int updateSlaFlags(Long id, String status, String warning, String overdue, String response,
+                String arrival, String finish, Date time) { return 0; }
+        @Override public int autoClose(Long id, Integer version, Date closedAt) { return 0; }
     }
 
     private static class RecordingActionLogMapper implements WorkOrderActionLogMapper

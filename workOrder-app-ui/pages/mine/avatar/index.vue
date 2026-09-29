@@ -26,10 +26,14 @@
 						</view>
 					</view>
 				</view>
+				<view v-else class="empty-image-tip">
+					{{ imageSrc ? '图片读取失败，请重新选择' : '请选择头像图片' }}
+				</view>
 			</view>
 			<view class='cropper-config'>
-				<button type="primary reverse" @click="getImage" style='margin-top: 30rpx;'> 选择头像 </button>
-				<button type="warn" @click="getImageInfo" style='margin-top: 30rpx;'> 提交 </button>
+				<button type="primary" :disabled="uploading" @click="getImage" style='margin-top: 30rpx;'>选择头像</button>
+				<button type="warn" :disabled="uploading || !isShowImg" @click="getImageInfo" style='margin-top: 30rpx;'>提交</button>
+				<view v-if="errorMessage" class="error-message">{{ errorMessage }}</view>
 			</view>
 			<canvas canvas-id="myCanvas" :style="'position:absolute;border: 1px solid red; width:'+imageW+'px;height:'+imageH+'px;top:-9999px;left:-9999px;'"></canvas>
 		</view>
@@ -67,9 +71,14 @@
 		 * 页面的初始数据
 		 */
 		data() {
+			const avatar = store.getters.avatar || ''
 			return {
-				imageSrc: store.getters.avatar,
+				// 原头像只在上传成功后更新；失败时保留当前选择和原头像。
+				originalAvatar: avatar,
+				imageSrc: avatar,
 				isShowImg: false,
+				uploading: false,
+				errorMessage: '',
 				// 初始化的宽高
 				cropperInitW: SCREEN_WIDTH,
 				cropperInitH: SCREEN_WIDTH,
@@ -101,7 +110,7 @@
 		 * 生命周期函数--监听页面初次渲染完成
 		 */
 		onReady: function () {
-			this.loadImage()
+			if (this.imageSrc) this.loadImage(false)
 		},
 		methods: {
 			setData: function (obj) {
@@ -110,85 +119,113 @@
 					that.$set(that.$data, key, obj[key])
 				})
 			},
+			showMessage(message) {
+				uni.showToast({ title: message, icon: 'none' })
+			},
 			getImage: function () {
-				var _this = this
+				if (this.uploading) return
+				const that = this
 				uni.chooseImage({
+					count: 1,
+					sizeType: ['compressed'],
 					success: function (res) {
-						_this.setData({
-							imageSrc: res.tempFilePaths[0],
-						})
-						_this.loadImage()
+						const imagePath = res && res.tempFilePaths && res.tempFilePaths[0]
+						if (!imagePath) {
+							that.errorMessage = '未获取到图片，请重新选择'
+							that.showMessage(that.errorMessage)
+							return
+						}
+						// 选择成功后保留本地路径；读取或上传失败时仍可继续重试。
+						that.imageSrc = imagePath
+						that.errorMessage = ''
+						that.loadImage(true)
 					},
+					fail: function (error) {
+						const message = error && error.errMsg && error.errMsg.indexOf('cancel') !== -1
+							? '已取消选择头像'
+							: '选择头像失败，请重试'
+						that.errorMessage = message.indexOf('取消') !== -1 ? '' : message
+						that.showMessage(message)
+					}
 				})
 			},
-			loadImage: function () {
-				var _this = this
-
-				uni.getImageInfo({
-					src: _this.imageSrc,
-					success: function success(res) {
-						IMG_RATIO = 1 / 1
-						if (IMG_RATIO >= 1) {
-							IMG_REAL_W = SCREEN_WIDTH
-							IMG_REAL_H = SCREEN_WIDTH / IMG_RATIO
-						} else {
-							IMG_REAL_W = SCREEN_WIDTH * IMG_RATIO
-							IMG_REAL_H = SCREEN_WIDTH
+			loadImage: function (showError) {
+				const source = this.imageSrc
+				return new Promise(resolve => {
+					const fail = message => {
+						this.isShowImg = false
+						if (showError) {
+							this.errorMessage = message
+							this.showMessage(message)
 						}
-						let minRange = IMG_REAL_W > IMG_REAL_H ? IMG_REAL_W : IMG_REAL_H
-						INIT_DRAG_POSITION = minRange > INIT_DRAG_POSITION ? INIT_DRAG_POSITION : minRange
-						// 根据图片的宽高显示不同的效果   保证图片可以正常显示
-						if (IMG_RATIO >= 1) {
-							let cutT = Math.ceil((SCREEN_WIDTH / IMG_RATIO - (SCREEN_WIDTH / IMG_RATIO - INIT_DRAG_POSITION)) / 2)
-							let cutB = cutT
-							let cutL = Math.ceil((SCREEN_WIDTH - SCREEN_WIDTH + INIT_DRAG_POSITION) / 2)
-							let cutR = cutL
-							_this.setData({
-								cropperW: SCREEN_WIDTH,
-								cropperH: SCREEN_WIDTH / IMG_RATIO,
-								// 初始化left right
-								cropperL: Math.ceil((SCREEN_WIDTH - SCREEN_WIDTH) / 2),
-								cropperT: Math.ceil((SCREEN_WIDTH - SCREEN_WIDTH / IMG_RATIO) / 2),
-								cutL: cutL,
-								cutT: cutT,
-								cutR: cutR,
-								cutB: cutB,
-								// 图片缩放值
-								imageW: IMG_REAL_W,
-								imageH: IMG_REAL_H,
-								scaleP: IMG_REAL_W / SCREEN_WIDTH,
-								qualityWidth: DRAW_IMAGE_W,
-								innerAspectRadio: IMG_RATIO
-							})
-						} else {
-							let cutL = Math.ceil((SCREEN_WIDTH * IMG_RATIO - (SCREEN_WIDTH * IMG_RATIO)) / 2)
-							let cutR = cutL
-							let cutT = Math.ceil((SCREEN_WIDTH - INIT_DRAG_POSITION) / 2)
-							let cutB = cutT
-							_this.setData({
-								cropperW: SCREEN_WIDTH * IMG_RATIO,
-								cropperH: SCREEN_WIDTH,
-								// 初始化left right
-								cropperL: Math.ceil((SCREEN_WIDTH - SCREEN_WIDTH * IMG_RATIO) / 2),
-								cropperT: Math.ceil((SCREEN_WIDTH - SCREEN_WIDTH) / 2),
-
-								cutL: cutL,
-								cutT: cutT,
-								cutR: cutR,
-								cutB: cutB,
-								// 图片缩放值
-								imageW: IMG_REAL_W,
-								imageH: IMG_REAL_H,
-								scaleP: IMG_REAL_W / SCREEN_WIDTH,
-								qualityWidth: DRAW_IMAGE_W,
-								innerAspectRadio: IMG_RATIO
-							})
-						}
-						_this.setData({
-							isShowImg: true
-						})
-						uni.hideLoading()
+						resolve(false)
 					}
+					if (!source) {
+						fail('请先选择头像')
+						return
+					}
+					uni.getImageInfo({
+						src: source,
+						success: res => {
+							const width = Number(res && res.width)
+							const height = Number(res && res.height)
+							if (!width || !height) {
+								fail('图片读取失败，请重新选择')
+								return
+							}
+							IMG_RATIO = width / height
+							if (IMG_RATIO >= 1) {
+								IMG_REAL_W = SCREEN_WIDTH
+								IMG_REAL_H = SCREEN_WIDTH / IMG_RATIO
+							} else {
+								IMG_REAL_W = SCREEN_WIDTH * IMG_RATIO
+								IMG_REAL_H = SCREEN_WIDTH
+							}
+							const minRange = Math.min(IMG_REAL_W, IMG_REAL_H)
+							const initialDragPosition = Math.min(INIT_DRAG_POSITION, minRange)
+							if (IMG_RATIO >= 1) {
+								const cutT = Math.ceil((IMG_REAL_H - initialDragPosition) / 2)
+								const cutL = Math.ceil((IMG_REAL_W - initialDragPosition) / 2)
+								this.setData({
+									cropperW: SCREEN_WIDTH,
+									cropperH: IMG_REAL_H,
+									cropperL: 0,
+									cropperT: Math.ceil((SCREEN_WIDTH - IMG_REAL_H) / 2),
+									cutL: cutL,
+									cutT: cutT,
+									cutR: cutL,
+									cutB: cutT,
+									imageW: IMG_REAL_W,
+									imageH: IMG_REAL_H,
+									scaleP: IMG_REAL_W / SCREEN_WIDTH,
+									qualityWidth: DRAW_IMAGE_W,
+									innerAspectRadio: IMG_RATIO,
+									isShowImg: true
+								})
+							} else {
+								const cutT = Math.ceil((IMG_REAL_H - initialDragPosition) / 2)
+								this.setData({
+									cropperW: IMG_REAL_W,
+									cropperH: SCREEN_WIDTH,
+									cropperL: Math.ceil((SCREEN_WIDTH - IMG_REAL_W) / 2),
+									cropperT: 0,
+									cutL: 0,
+									cutT: cutT,
+									cutR: 0,
+									cutB: cutT,
+									imageW: IMG_REAL_W,
+									imageH: IMG_REAL_H,
+									scaleP: IMG_REAL_W / SCREEN_WIDTH,
+									qualityWidth: DRAW_IMAGE_W,
+									innerAspectRadio: IMG_RATIO,
+									isShowImg: true
+								})
+							}
+							this.errorMessage = ''
+							resolve(true)
+						},
+						fail: () => fail('图片读取失败，请重新选择')
+					})
 				})
 			},
 			// 拖动时候触发的touchStart事件
@@ -229,41 +266,82 @@
 
 			},
 
-			// 获取图片
-			getImageInfo() {
-				var _this = this
-				uni.showLoading({
-					title: '图片生成中...',
-				})
-				// 将图片写入画布
-				const ctx = uni.createCanvasContext('myCanvas')
-				ctx.drawImage(_this.imageSrc, 0, 0, IMG_REAL_W, IMG_REAL_H)
-				ctx.draw(true, () => {
-					// 获取画布要裁剪的位置和宽度   均为百分比 * 画布中图片的宽度    保证了在微信小程序中裁剪的图片模糊  位置不对的问题 canvasT = (_this.cutT / _this.cropperH) * (_this.imageH / pixelRatio)
-					var canvasW = ((_this.cropperW - _this.cutL - _this.cutR) / _this.cropperW) * IMG_REAL_W
-					var canvasH = ((_this.cropperH - _this.cutT - _this.cutB) / _this.cropperH) * IMG_REAL_H
-					var canvasL = (_this.cutL / _this.cropperW) * IMG_REAL_W
-					var canvasT = (_this.cutT / _this.cropperH) * IMG_REAL_H
-					uni.canvasToTempFilePath({
-						x: canvasL,
-						y: canvasT,
-						width: canvasW,
-						height: canvasH,
-						destWidth: canvasW,
-						destHeight: canvasH,
-						quality: 0.5,
-						canvasId: 'myCanvas',
-						success: function (res) {
-							uni.hideLoading()
-							let data = {name: 'avatarfile', filePath: res.tempFilePath}
-							uploadAvatar(data).then(response => {
-								store.commit('SET_AVATAR', baseUrl + response.imgUrl)
-								uni.showToast({ title: "修改成功", icon: 'success' })
-								uni.navigateBack()
+			// 裁剪、上传共用一个锁；失败只提示并保留当前选择，避免重复提交或清空原头像。
+			async getImageInfo() {
+				if (this.uploading) return
+				if (!this.imageSrc || !this.isShowImg) {
+					this.errorMessage = '请先选择可用的头像图片'
+					this.showMessage(this.errorMessage)
+					return
+				}
+				this.uploading = true
+				let stage = '处理'
+				uni.showLoading({ title: '正在处理头像...', mask: true })
+				try {
+					const tempFilePath = await this.createCroppedImage()
+					stage = '上传'
+					uni.showLoading({ title: '正在上传头像...', mask: true })
+					const response = await uploadAvatar({ name: 'avatarfile', filePath: tempFilePath })
+					if (!response || !response.imgUrl) throw new Error('上传响应缺少头像地址')
+					const avatarUrl = this.normalizeAvatarUrl(response.imgUrl)
+					store.commit('SET_AVATAR', avatarUrl)
+					this.originalAvatar = avatarUrl
+					this.imageSrc = avatarUrl
+					this.errorMessage = ''
+					uni.showToast({ title: '头像修改成功', icon: 'success' })
+					try {
+						this.$tab.navigateBack()
+					} catch (navigationError) {
+						this.showMessage('头像已修改，请手动返回')
+					}
+				} catch (error) {
+					this.errorMessage = stage === '上传' ? '头像上传失败，请重试' : '头像处理失败，请重试'
+					this.showMessage(this.errorMessage)
+				} finally {
+					uni.hideLoading()
+					this.uploading = false
+				}
+			},
+			createCroppedImage() {
+				return new Promise((resolve, reject) => {
+					try {
+						const ctx = uni.createCanvasContext('myCanvas')
+						ctx.drawImage(this.imageSrc, 0, 0, IMG_REAL_W, IMG_REAL_H)
+						ctx.draw(false, () => {
+							const canvasW = Math.max(1, Math.round(((this.cropperW - this.cutL - this.cutR) / this.cropperW) * IMG_REAL_W))
+							const canvasH = Math.max(1, Math.round(((this.cropperH - this.cutT - this.cutB) / this.cropperH) * IMG_REAL_H))
+							const canvasL = Math.max(0, (this.cutL / this.cropperW) * IMG_REAL_W)
+							const canvasT = Math.max(0, (this.cutT / this.cropperH) * IMG_REAL_H)
+							uni.canvasToTempFilePath({
+								x: canvasL,
+								y: canvasT,
+								width: canvasW,
+								height: canvasH,
+								destWidth: canvasW,
+								destHeight: canvasH,
+								quality: 0.8,
+								canvasId: 'myCanvas',
+								success: result => {
+									if (!result || !result.tempFilePath) {
+										reject(new Error('裁剪结果为空'))
+										return
+									}
+									resolve(result.tempFilePath)
+								},
+								fail: reject
 							})
-						}
-					})
+						})
+					} catch (error) {
+						reject(error)
+					}
 				})
+			},
+			normalizeAvatarUrl(url) {
+				const value = String(url || '').trim()
+				if (!value) return ''
+				if (/^(https?:|data:|blob:)/i.test(value)) return value
+				const prefix = String(baseUrl || '').replace(/\/+$/, '')
+				return prefix + '/' + value.replace(/^\/+/, '')
 			},
 			// 设置大小的时候触发的touchStart事件
 			dragStart(e) {
@@ -277,42 +355,46 @@
 
 			// 设置大小的时候触发的touchMove事件
 			dragMove(e) {
-				var _this = this
-				var dragType = e.target.dataset.drag
+				var dragType = (e.currentTarget && e.currentTarget.dataset && e.currentTarget.dataset.drag)
+					|| (e.target && e.target.dataset && e.target.dataset.drag)
 				switch (dragType) {
-					case 'right':
-						var dragLength = (T_PAGE_X - e.touches[0].pageX) * DRAFG_MOVE_RATIO
+					case 'right': {
+						let dragLength = (T_PAGE_X - e.touches[0].pageX) * DRAFG_MOVE_RATIO
 						if (CUT_R + dragLength < 0) dragLength = -CUT_R
 						this.setData({
 							cutR: CUT_R + dragLength
 						})
 						break
-					case 'left':
-						var dragLength = (T_PAGE_X - e.touches[0].pageX) * DRAFG_MOVE_RATIO
+					}
+					case 'left': {
+						let dragLength = (T_PAGE_X - e.touches[0].pageX) * DRAFG_MOVE_RATIO
 						if (CUT_L - dragLength < 0) dragLength = CUT_L
 						if ((CUT_L - dragLength) > (this.cropperW - this.cutR)) dragLength = CUT_L - (this.cropperW - this.cutR)
 						this.setData({
 							cutL: CUT_L - dragLength
 						})
 						break
-					case 'top':
-						var dragLength = (T_PAGE_Y - e.touches[0].pageY) * DRAFG_MOVE_RATIO
+					}
+					case 'top': {
+						let dragLength = (T_PAGE_Y - e.touches[0].pageY) * DRAFG_MOVE_RATIO
 						if (CUT_T - dragLength < 0) dragLength = CUT_T
 						if ((CUT_T - dragLength) > (this.cropperH - this.cutB)) dragLength = CUT_T - (this.cropperH - this.cutB)
 						this.setData({
 							cutT: CUT_T - dragLength
 						})
 						break
-					case 'bottom':
-						var dragLength = (T_PAGE_Y - e.touches[0].pageY) * DRAFG_MOVE_RATIO
+					}
+					case 'bottom': {
+						let dragLength = (T_PAGE_Y - e.touches[0].pageY) * DRAFG_MOVE_RATIO
 						if (CUT_B + dragLength < 0) dragLength = -CUT_B
 						this.setData({
 							cutB: CUT_B + dragLength
 						})
 						break
-					case 'rightBottom':
-						var dragLengthX = (T_PAGE_X - e.touches[0].pageX) * DRAFG_MOVE_RATIO
-						var dragLengthY = (T_PAGE_Y - e.touches[0].pageY) * DRAFG_MOVE_RATIO
+					}
+					case 'rightBottom': {
+						let dragLengthX = (T_PAGE_X - e.touches[0].pageX) * DRAFG_MOVE_RATIO
+						let dragLengthY = (T_PAGE_Y - e.touches[0].pageY) * DRAFG_MOVE_RATIO
 
 						if (CUT_B + dragLengthY < 0) dragLengthY = -CUT_B
 						if (CUT_R + dragLengthX < 0) dragLengthX = -CUT_R
@@ -324,6 +406,7 @@
 							cutR: cutR
 						})
 						break
+					}
 					default:
 						break
 				}
@@ -340,6 +423,20 @@
 	.cropper-content {
 		min-height: 750rpx;
 		width: 100%;
+	}
+
+	.empty-image-tip {
+		padding-top: 300rpx;
+		color: #999;
+		font-size: 28rpx;
+		text-align: center;
+	}
+
+	.error-message {
+		padding-top: 20rpx;
+		color: #dd524d;
+		font-size: 26rpx;
+		text-align: center;
 	}
 
 	.uni-corpper {

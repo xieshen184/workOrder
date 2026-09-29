@@ -1,0 +1,142 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.workorder.mapper.WorkOrderAnalyticsMapper">
+    <!-- 数据范围始终以报修人及报修科室为准，与工单列表保持一致。 -->
+    <sql id="authorizedOrderWhere">
+        o.del_flag = '0'
+        <if test="beginTime != null and beginTime != ''">
+            and o.create_time &gt;= concat(#{beginTime}, ' 00:00:00')
+        </if>
+        <if test="endTime != null and endTime != ''">
+            and o.create_time &lt; date_add(#{endTime}, interval 1 day)
+        </if>
+        <if test="deptId != null">and eu.dept_id = #{deptId}</if>
+        <if test="engineerId != null">and o.current_assignee_id = #{engineerId}</if>
+        <if test="categoryId != null">and o.category_id = #{categoryId}</if>
+        ${params.dataScope}
+    </sql>
+
+    <sql id="authorizedCurrentWhere">
+        o.del_flag = '0'
+        <if test="deptId != null">and eu.dept_id = #{deptId}</if>
+        <if test="engineerId != null">and o.current_assignee_id = #{engineerId}</if>
+        <if test="categoryId != null">and o.category_id = #{categoryId}</if>
+        ${params.dataScope}
+    </sql>
+
+    <select id="selectDashboardMetrics" resultType="java.util.HashMap">
+        select
+            coalesce(sum(case when o.create_time &gt;= current_date()
+                              and o.create_time &lt; date_add(current_date(), interval 1 day) then 1 else 0 end), 0) todayNew,
+            coalesce(sum(case when o.status = 'WAIT_ASSIGN' then 1 else 0 end), 0) pendingAssign,
+            coalesce(sum(case when o.status = 'PROCESSING' then 1 else 0 end), 0) processing,
+            coalesce(sum(case when o.warning_flag = '1' or o.overdue_flag = '1' then 1 else 0 end), 0) slaWarning
+        from wo_order o
+        left join sys_user u on u.user_id = o.applicant_id
+        left join sys_dept d on d.dept_id = o.applicant_dept_id
+        left join sys_user eu on eu.user_id = o.current_assignee_id
+        where <include refid="authorizedCurrentWhere"/>
+    </select>
+
+    <select id="selectDashboardTrend" resultType="java.util.HashMap">
+        select date_format(o.create_time, '%Y-%m-%d') date,
+               count(*) total,
+               sum(case when o.status in ('COMPLETED','CLOSED') then 1 else 0 end) completed
+        from wo_order o
+        left join sys_user u on u.user_id = o.applicant_id
+        left join sys_dept d on d.dept_id = o.applicant_dept_id
+        left join sys_user eu on eu.user_id = o.current_assignee_id
+        where <include refid="authorizedOrderWhere"/>
+        group by date_format(o.create_time, '%Y-%m-%d')
+        order by date
+    </select>
+
+    <select id="selectCategoryShare" resultType="java.util.HashMap">
+        select o.category_id categoryId, o.category_name categoryName, count(*) total
+        from wo_order o
+        left join sys_user u on u.user_id = o.applicant_id
+        left join sys_dept d on d.dept_id = o.applicant_dept_id
+        left join sys_user eu on eu.user_id = o.current_assignee_id
+        where <include refid="authorizedOrderWhere"/>
+        group by o.category_id, o.category_name
+        order by total desc, o.category_id
+    </select>
+
+    <select id="selectSlaRisks" resultType="java.util.HashMap">
+        select o.id, o.order_no orderNo, o.title, o.status,
+               o.current_assignee_name assigneeName,
+               coalesce(o.extension_deadline, o.finish_deadline, o.arrival_deadline, o.response_deadline) deadline,
+               o.overdue_flag overdueFlag, o.warning_flag warningFlag
+        from wo_order o
+        left join sys_user u on u.user_id = o.applicant_id
+        left join sys_dept d on d.dept_id = o.applicant_dept_id
+        left join sys_user eu on eu.user_id = o.current_assignee_id
+        where <include refid="authorizedCurrentWhere"/>
+          and (o.warning_flag = '1' or o.overdue_flag = '1')
+          and o.status not in ('CLOSED','CANCELLED')
+        order by o.overdue_flag desc, deadline, o.id
+        limit 10
+    </select>
+
+    <select id="selectOperationAlerts" resultType="java.util.HashMap">
+        select 'SMS_BALANCE_LOW' code, 'warning' level, '短信余额预警' title,
+               concat('当前可用余额 ', available_balance, '，已达到预警阈值 ', warning_threshold) message,
+               '/workorder/operations/sms' route
+        from wo_sms_account_setting
+        where id = 1 and configured_flag = '1' and available_balance is not null
+          and available_balance &lt;= warning_threshold
+    </select>
+
+    <!-- 绩效统计使用同一批“区间内创建的工单”作为样本，避免各卡片分母不一致。 -->
+    <select id="selectPerformanceMetrics" resultType="java.util.HashMap">
+        select
+            sum(case when o.status in ('COMPLETED','CLOSED') then 1 else 0 end) completedCount,
+            round(avg(case when o.accepted_at is not null and o.assigned_at is not null
+                           then timestampdiff(minute, o.assigned_at, o.accepted_at) end), 1) avgResponseMinutes,
+            round(avg(case when o.arrived_at is not null and o.accepted_at is not null
+                           then timestampdiff(minute, o.accepted_at, o.arrived_at) end), 1) avgArrivalMinutes,
+            round(100 * avg(case when o.finished_at is not null and coalesce(o.extension_deadline, o.finish_deadline) is not null
+                                 then if(o.finish_overdue = '0', 1, 0) end), 1) onTimeRate,
+            round(avg(e.overall_score), 2) satisfactionScore,
+            round(100 * avg(case when o.status in ('COMPLETED','CLOSED') then if(r.order_id is null, 0, 1) end), 1) reworkRate,
+            sum(case when o.finished_at is not null and coalesce(o.extension_deadline, o.finish_deadline) is not null then 1 else 0 end) onTimeSample,
+            count(e.id) satisfactionSample,
+            sum(case when o.status in ('COMPLETED','CLOSED') then 1 else 0 end) reworkSample
+        from wo_order o
+        left join sys_user u on u.user_id = o.applicant_id
+        left join sys_dept d on d.dept_id = o.applicant_dept_id
+        left join sys_user eu on eu.user_id = o.current_assignee_id
+        left join wo_evaluation e on e.order_id = o.id
+        left join (select distinct order_id from wo_action_log where action_type = 'RETURN') r on r.order_id = o.id
+        where <include refid="authorizedOrderWhere"/>
+    </select>
+
+    <select id="selectEngineerPerformance" resultType="java.util.HashMap">
+        select o.current_assignee_id engineerId,
+               max(o.current_assignee_name) engineerName,
+               max(ed.dept_name) deptName,
+               sum(case when o.status in ('COMPLETED','CLOSED') then 1 else 0 end) completedCount,
+               round(avg(case when o.accepted_at is not null and o.assigned_at is not null
+                              then timestampdiff(minute, o.assigned_at, o.accepted_at) end), 1) avgResponseMinutes,
+               round(avg(case when o.arrived_at is not null and o.accepted_at is not null
+                              then timestampdiff(minute, o.accepted_at, o.arrived_at) end), 1) avgArrivalMinutes,
+               round(100 * avg(case when o.finished_at is not null and coalesce(o.extension_deadline, o.finish_deadline) is not null
+                                    then if(o.finish_overdue = '0', 1, 0) end), 1) onTimeRate,
+               round(avg(e.overall_score), 2) satisfactionScore,
+               round(100 * avg(case when o.status in ('COMPLETED','CLOSED') then if(r.order_id is null, 0, 1) end), 1) reworkRate,
+               sum(case when o.finished_at is not null and coalesce(o.extension_deadline, o.finish_deadline) is not null then 1 else 0 end) onTimeSample,
+               count(e.id) satisfactionSample,
+               sum(case when o.status in ('COMPLETED','CLOSED') then 1 else 0 end) reworkSample
+        from wo_order o
+        left join sys_user u on u.user_id = o.applicant_id
+        left join sys_dept d on d.dept_id = o.applicant_dept_id
+        left join sys_user eu on eu.user_id = o.current_assignee_id
+        left join sys_dept ed on ed.dept_id = eu.dept_id
+        left join wo_evaluation e on e.order_id = o.id
+        left join (select distinct order_id from wo_action_log where action_type = 'RETURN') r on r.order_id = o.id
+        where <include refid="authorizedOrderWhere"/>
+          and o.current_assignee_id is not null
+        group by o.current_assignee_id
+        order by completedCount desc, engineerId
+    </select>
+</mapper>

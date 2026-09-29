@@ -11,6 +11,7 @@ import com.ruoyi.workorder.application.model.WorkOrderActor;
 import com.ruoyi.workorder.domain.model.WorkOrder;
 import com.ruoyi.workorder.domain.model.WorkOrderActionLog;
 import com.ruoyi.workorder.domain.model.WorkOrderCategory;
+import com.ruoyi.workorder.domain.model.WorkOrderNotificationEvent;
 import com.ruoyi.workorder.domain.model.WorkOrderStatus;
 import com.ruoyi.workorder.domain.model.WorkOrderSlaRule;
 import com.ruoyi.workorder.mapper.WorkOrderActionLogMapper;
@@ -29,6 +30,7 @@ public class WorkOrderCreationService
     @Autowired private WorkOrderSlaRuleMapper slaRuleMapper;
     @Autowired private WorkOrderAttachmentMapper attachmentMapper;
     @Autowired private WorkOrderActionLogMapper actionLogMapper;
+    @Autowired private WorkOrderNotificationOutboxService notificationOutbox;
 
     /**
      * 创建全新工单。调用方必须先完成参数、身份、分类和幂等校验。
@@ -67,6 +69,8 @@ public class WorkOrderCreationService
         order.setResponseDeadline(slaRule.responseDeadline(now));
         order.setArrivalDeadline(slaRule.arrivalDeadline(now));
         order.setFinishDeadline(slaRule.finishDeadline(now));
+        order.setSlaReminderBeforeMin(slaRule.getReminderBeforeMin());
+        order.setSlaAllowExtension(slaRule.getAllowExtension());
         order.setSubmittedAt(now);
         order.setVersion(0);
         order.setCreateBy(actor.getUsername());
@@ -98,6 +102,12 @@ public class WorkOrderCreationService
         log.setIdempotencyKey(idempotencyKey);
         log.setActionTime(now);
         actionLogMapper.insert(log);
+        if (notificationOutbox != null)
+        {
+            notificationOutbox.publish(new WorkOrderNotificationEvent("SUBMIT",
+                    "order:" + order.getId() + ":submit:" + actor.getUserId() + ":" + idempotencyKey,
+                    order, null, actor.getDisplayName(), null, order.getResponseDeadline(), now));
+        }
         return order;
     }
 

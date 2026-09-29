@@ -1,6 +1,7 @@
 package com.ruoyi.framework.config;
 
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -22,114 +23,117 @@ import com.ruoyi.framework.security.handle.AuthenticationEntryPointImpl;
 import com.ruoyi.framework.security.handle.LogoutSuccessHandlerImpl;
 
 /**
- * spring security配置
- * 
- * @author ruoyi
+ * Spring Security 统一配置。
+ *
+ * <p>公共路径在此集中声明，未列入白名单的请求一律要求 JWT 认证。Swagger 和
+ * Druid 入口由配置开关控制，生产环境启动保护器会强制关闭这两个入口。</p>
  */
 @EnableMethodSecurity(prePostEnabled = true, securedEnabled = true)
 @Configuration
 public class SecurityConfig
 {
-    /**
-     * 自定义用户认证逻辑
-     */
     @Autowired
     private UserDetailsService userDetailsService;
-    
-    /**
-     * 认证失败处理类
-     */
+
     @Autowired
     private AuthenticationEntryPointImpl unauthorizedHandler;
 
-    /**
-     * 退出处理类
-     */
     @Autowired
     private LogoutSuccessHandlerImpl logoutSuccessHandler;
 
-    /**
-     * token认证过滤器
-     */
     @Autowired
     private JwtAuthenticationTokenFilter authenticationTokenFilter;
-    
-    /**
-     * 跨域过滤器
-     */
+
     @Autowired
     private CorsFilter corsFilter;
 
-    /**
-     * 允许匿名访问的地址
-     */
     @Autowired
     private PermitAllUrlProperties permitAllUrl;
 
+    /** 是否开放接口文档入口。 */
+    @Value("${swagger.enabled:false}")
+    private boolean swaggerEnabled;
+
+    /** 是否开放 Druid 管理入口。 */
+    @Value("${spring.datasource.druid.statViewServlet.enabled:false}")
+    private boolean druidEnabled;
+
     /**
-     * 身份验证实现
+     * 组装用户名密码认证器。
+     *
+     * @return 使用 BCrypt 校验密码的认证管理器
      */
     @Bean
     public AuthenticationManager authenticationManager()
     {
-        DaoAuthenticationProvider daoAuthenticationProvider = new DaoAuthenticationProvider();
-        daoAuthenticationProvider.setUserDetailsService(userDetailsService);
-        daoAuthenticationProvider.setPasswordEncoder(bCryptPasswordEncoder());
-        return new ProviderManager(daoAuthenticationProvider);
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(userDetailsService);
+        provider.setPasswordEncoder(bCryptPasswordEncoder());
+        return new ProviderManager(provider);
     }
 
     /**
-     * anyRequest          |   匹配所有请求路径
-     * access              |   SpringEl表达式结果为true时可以访问
-     * anonymous           |   匿名可以访问
-     * denyAll             |   用户不能访问
-     * fullyAuthenticated  |   用户完全认证可以访问（非remember-me下自动登录）
-     * hasAnyAuthority     |   如果有参数，参数表示权限，则其中任何一个权限可以访问
-     * hasAnyRole          |   如果有参数，参数表示角色，则其中任何一个角色可以访问
-     * hasAuthority        |   如果有参数，参数表示权限，则其权限可以访问
-     * hasIpAddress        |   如果有参数，参数表示IP地址，如果用户IP和参数匹配，则可以访问
-     * hasRole             |   如果有参数，参数表示角色，则其角色可以访问
-     * permitAll           |   用户可以任意访问
-     * rememberMe          |   允许通过remember-me登录的用户访问
-     * authenticated       |   用户登录后可访问
+     * 定义无状态 JWT 请求的安全过滤链。
+     *
+     * @param httpSecurity Spring Security 配置对象
+     * @return 应用安全过滤链
+     * @throws Exception 安全配置构建失败时抛出
      */
     @Bean
     protected SecurityFilterChain filterChain(HttpSecurity httpSecurity) throws Exception
     {
         return httpSecurity
-            // CSRF禁用，因为不使用session
+            // 系统使用无状态 JWT，不依赖浏览器 Session，因此关闭 CSRF Token 校验。
             .csrf(csrf -> csrf.disable())
-            // 禁用HTTP响应标头
-            .headers((headersCustomizer) -> {
-                headersCustomizer.cacheControl(cache -> cache.disable()).frameOptions(options -> options.sameOrigin());
-            })
-            // 认证失败处理类
+            // 保留 Spring Security 默认安全响应头，仅允许同源页面使用 frame。
+            .headers(headers -> headers.frameOptions(options -> options.sameOrigin()))
             .exceptionHandling(exception -> exception.authenticationEntryPoint(unauthorizedHandler))
-            // 基于token，所以不需要session
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            // 注解标记允许匿名访问的url
-            .authorizeHttpRequests((requests) -> {
+            .authorizeHttpRequests(requests -> {
+                // 控制器上通过 @Anonymous 声明的接口进入公共白名单。
                 permitAllUrl.getUrls().forEach(url -> requests.antMatchers(url).permitAll());
-                // 对于登录login 注册register 验证码captchaImage 允许匿名访问
-                requests.antMatchers("/login", "/register", "/captchaImage").permitAll()
-                    // 静态资源，可匿名访问
-                    .antMatchers(HttpMethod.GET, "/", "/*.html", "/**/*.html", "/**/*.css", "/**/*.js", "/profile/**").permitAll()
-                    .antMatchers("/swagger-ui.html", "/swagger-resources/**", "/webjars/**", "/*/api-docs", "/druid/**").permitAll()
-                    // 除上面外的所有请求全部需要鉴权认证
-                    .anyRequest().authenticated();
+                // 建立用户身份之前必须访问的公共入口。
+                requests.antMatchers("/login", "/register", "/captchaImage").permitAll();
+                // 只公开确定的前端资源和头像目录；工单附件仍经过业务接口鉴权。
+                requests.antMatchers(HttpMethod.GET,
+                        "/", "/index.html", "/favicon.ico", "/static/**", "/profile/avatar/**").permitAll();
+
+                String[] swaggerPaths = {
+                        "/swagger-ui.html", "/swagger-ui/**", "/swagger-resources/**",
+                        "/webjars/**", "/v2/api-docs", "/v3/api-docs/**", "/*/api-docs"
+                };
+                if (swaggerEnabled)
+                {
+                    requests.antMatchers(swaggerPaths).permitAll();
+                }
+                else
+                {
+                    requests.antMatchers(swaggerPaths).denyAll();
+                }
+
+                if (druidEnabled)
+                {
+                    // Druid 自带登录页无法携带业务 JWT；只有明确启用时才允许进入。
+                    requests.antMatchers("/druid/**").permitAll();
+                }
+                else
+                {
+                    requests.antMatchers("/druid/**").denyAll();
+                }
+
+                requests.anyRequest().authenticated();
             })
-            // 添加Logout filter
             .logout(logout -> logout.logoutUrl("/logout").logoutSuccessHandler(logoutSuccessHandler))
-            // 添加JWT filter
             .addFilterBefore(authenticationTokenFilter, UsernamePasswordAuthenticationFilter.class)
-            // 添加CORS filter
             .addFilterBefore(corsFilter, JwtAuthenticationTokenFilter.class)
             .addFilterBefore(corsFilter, LogoutFilter.class)
             .build();
     }
 
     /**
-     * 强散列哈希加密实现
+     * 密码采用 BCrypt 单向哈希。
+     *
+     * @return BCrypt 编码器
      */
     @Bean
     public BCryptPasswordEncoder bCryptPasswordEncoder()

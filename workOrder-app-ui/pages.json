@@ -15,7 +15,7 @@
   }, {
     "path": "pages/index",
     "style": {
-      "navigationBarTitleText": "若依移动端框架",
+      "navigationBarTitleText": "医院后勤工单系统",
       "navigationStyle": "custom"
     }
   }, {
@@ -27,6 +27,13 @@
     "path": "pages/mine/index",
     "style": {
       "navigationBarTitleText": "我的"
+    }
+  }, {
+    "path": "pages/notification/index",
+    "style": {
+      "navigationBarTitleText": "消息中心",
+      "navigationStyle": "custom",
+      "enablePullDownRefresh": true
     }
   }, {
     "path": "pages/mine/avatar/index",
@@ -73,6 +80,11 @@
     "style": {
       "navigationBarTitleText": "浏览文本"
     }
+  }, {
+    "path": "pages/common/state/index",
+    "style": {
+      "navigationBarTitleText": "状态提示"
+    }
   },
   {
     "path": "pages/order/submit/index",
@@ -104,6 +116,12 @@
     "style": {
       "navigationBarTitleText": "工单处理",
       "enablePullDownRefresh": true
+    }
+  },
+  {
+    "path": "pages/order/delay/index",
+    "style": {
+      "navigationBarTitleText": "延期申请"
     }
   },
   {

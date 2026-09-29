@@ -31,6 +31,8 @@ public class WorkOrder extends BaseEntity
     private Date responseDeadline;
     private Date arrivalDeadline;
     private Date finishDeadline;
+    private Integer slaReminderBeforeMin;
+    private String slaAllowExtension;
     private Date submittedAt;
     private Date assignedAt;
     private Date acceptedAt;
@@ -42,6 +44,10 @@ public class WorkOrder extends BaseEntity
     private String overdueFlag;
     private String warningFlag;
     private String delayPendingFlag;
+    private String responseOverdue;
+    private String arrivalOverdue;
+    private String finishOverdue;
+    private Date extensionDeadline;
     private Integer version;
     private List<WorkOrderAttachment> attachments;
     private List<WorkOrderActionLog> timeline;
@@ -72,6 +78,8 @@ public class WorkOrder extends BaseEntity
     public Date getResponseDeadline() { return responseDeadline; } public void setResponseDeadline(Date v) { responseDeadline=v; }
     public Date getArrivalDeadline() { return arrivalDeadline; } public void setArrivalDeadline(Date v) { arrivalDeadline=v; }
     public Date getFinishDeadline() { return finishDeadline; } public void setFinishDeadline(Date v) { finishDeadline=v; }
+    public Integer getSlaReminderBeforeMin() { return slaReminderBeforeMin; } public void setSlaReminderBeforeMin(Integer v) { slaReminderBeforeMin=v; }
+    public String getSlaAllowExtension() { return slaAllowExtension; } public void setSlaAllowExtension(String v) { slaAllowExtension=v; }
     public Date getSubmittedAt() { return submittedAt; } public void setSubmittedAt(Date v) { submittedAt=v; }
     public Date getAssignedAt() { return assignedAt; } public void setAssignedAt(Date v) { assignedAt=v; }
     public Date getAcceptedAt() { return acceptedAt; } public void setAcceptedAt(Date v) { acceptedAt=v; }
@@ -83,6 +91,10 @@ public class WorkOrder extends BaseEntity
     public String getOverdueFlag() { return overdueFlag; } public void setOverdueFlag(String v) { overdueFlag=v; }
     public String getWarningFlag() { return warningFlag; } public void setWarningFlag(String v) { warningFlag=v; }
     public String getDelayPendingFlag() { return delayPendingFlag; } public void setDelayPendingFlag(String v) { delayPendingFlag=v; }
+    public String getResponseOverdue() { return responseOverdue; } public void setResponseOverdue(String v) { responseOverdue=v; }
+    public String getArrivalOverdue() { return arrivalOverdue; } public void setArrivalOverdue(String v) { arrivalOverdue=v; }
+    public String getFinishOverdue() { return finishOverdue; } public void setFinishOverdue(String v) { finishOverdue=v; }
+    public Date getExtensionDeadline() { return extensionDeadline; } public void setExtensionDeadline(Date v) { extensionDeadline=v; }
     public Integer getVersion() { return version; } public void setVersion(Integer v) { version=v; }
     public List<WorkOrderAttachment> getAttachments() { return attachments; } public void setAttachments(List<WorkOrderAttachment> v) { attachments=v; }
     public List<WorkOrderActionLog> getTimeline() { return timeline; } public void setTimeline(List<WorkOrderActionLog> v) { timeline=v; }

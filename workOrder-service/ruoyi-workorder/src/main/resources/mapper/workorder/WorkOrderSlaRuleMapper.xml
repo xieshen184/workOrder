@@ -3,21 +3,97 @@
 <mapper namespace="com.ruoyi.workorder.mapper.WorkOrderSlaRuleMapper">
     <resultMap id="SlaRuleResult" type="com.ruoyi.workorder.domain.model.WorkOrderSlaRule">
         <id property="id" column="id"/>
+        <result property="ruleCode" column="rule_code"/><result property="ruleName" column="rule_name"/>
+        <result property="categoryId" column="category_id"/><result property="categoryName" column="category_name"/>
+        <result property="urgencyLevel" column="urgency_level"/><result property="priority" column="priority"/>
+        <result property="effectiveFrom" column="effective_from"/><result property="effectiveTo" column="effective_to"/>
         <result property="responseMinutes" column="response_minutes"/>
-        <result property="arrivalMinutes" column="arrival_minutes"/>
-        <result property="finishMinutes" column="finish_minutes"/>
+        <result property="arrivalMinutes" column="arrival_minutes"/><result property="finishMinutes" column="finish_minutes"/>
+        <result property="reminderBeforeMin" column="reminder_before_min"/>
+        <result property="allowExtension" column="allow_extension"/><result property="status" column="status"/>
+        <result property="referenceCount" column="reference_count"/><result property="remark" column="remark"/>
+        <result property="createBy" column="create_by"/><result property="createTime" column="create_time"/>
+        <result property="updateBy" column="update_by"/><result property="updateTime" column="update_time"/>
     </resultMap>
 
+    <sql id="manageColumns">
+        r.id, r.rule_code, r.rule_name, r.category_id, c.category_name, r.urgency_level,
+        r.priority, r.effective_from, r.effective_to, r.response_minutes, r.arrival_minutes,
+        r.finish_minutes, r.reminder_before_min, r.allow_extension, r.status, r.remark,
+        r.create_by, r.create_time, r.update_by, r.update_time,
+        (select count(*) from wo_order o where o.sla_rule_id = r.id and o.del_flag = '0') reference_count
+    </sql>
+
     <select id="selectEffective" resultMap="SlaRuleResult">
-        select id, response_minutes, arrival_minutes, finish_minutes
-        from wo_sla_rule
-        where (category_id = #{categoryId} or category_id is null)
-          and urgency_level = #{urgencyLevel}
-          and effective_from &lt;= #{effectiveAt}
-          and (effective_to is null or effective_to &gt; #{effectiveAt})
-          and status = '0' and del_flag = '0'
-        order by case when category_id = #{categoryId} then 1 else 0 end desc,
-                 priority desc, effective_from desc, id desc
+        select <include refid="manageColumns"/>
+        from wo_sla_rule r left join wo_category c on c.id = r.category_id and c.del_flag = '0'
+        where (r.category_id = #{categoryId} or r.category_id is null)
+          and r.urgency_level = #{urgencyLevel}
+          and r.effective_from &lt;= #{effectiveAt}
+          and (r.effective_to is null or r.effective_to &gt; #{effectiveAt})
+          and r.status = '0' and r.del_flag = '0'
+        order by case when r.category_id = #{categoryId} then 1 else 0 end desc,
+                 r.priority desc, r.effective_from desc, r.id desc
         limit 1
     </select>
+
+    <select id="selectById" parameterType="Long" resultMap="SlaRuleResult">
+        select <include refid="manageColumns"/>
+        from wo_sla_rule r left join wo_category c on c.id = r.category_id and c.del_flag = '0'
+        where r.id = #{id} and r.del_flag = '0'
+    </select>
+
+    <select id="selectByCode" parameterType="String" resultMap="SlaRuleResult">
+        select <include refid="manageColumns"/>
+        from wo_sla_rule r left join wo_category c on c.id = r.category_id and c.del_flag = '0'
+        where r.rule_code = #{ruleCode} and r.del_flag = '0' limit 1
+    </select>
+
+    <select id="selectList" resultMap="SlaRuleResult">
+        select <include refid="manageColumns"/>
+        from wo_sla_rule r left join wo_category c on c.id = r.category_id and c.del_flag = '0'
+        <where>
+            r.del_flag = '0'
+            <if test="keyword != null and keyword != ''">
+                and (r.rule_code like concat('%', #{keyword}, '%') or r.rule_name like concat('%', #{keyword}, '%'))
+            </if>
+            <if test="categoryId != null">and r.category_id = #{categoryId}</if>
+            <if test="urgencyLevel != null">and r.urgency_level = #{urgencyLevel}</if>
+            <if test="status != null and status != ''">and r.status = #{status}</if>
+        </where>
+        order by r.status, r.priority desc, r.effective_from desc, r.id desc
+    </select>
+
+    <!-- 同一适用范围、紧急度和优先级的有效期不得重叠，否则匹配结果只能依赖创建顺序。 -->
+    <select id="countOverlapping" resultType="int">
+        select count(*) from wo_sla_rule r
+        where r.del_flag = '0' and r.status = '0'
+          and ((#{categoryId} is null and r.category_id is null) or r.category_id = #{categoryId})
+          and r.urgency_level = #{urgencyLevel} and r.priority = #{priority}
+          <if test="excludeId != null">and r.id != #{excludeId}</if>
+          and (#{effectiveTo} is null or r.effective_from &lt; #{effectiveTo})
+          and (r.effective_to is null or r.effective_to &gt; #{effectiveFrom})
+    </select>
+
+    <insert id="insert" useGeneratedKeys="true" keyProperty="id">
+        insert into wo_sla_rule
+        (rule_code, rule_name, category_id, urgency_level, priority, effective_from, effective_to,
+         response_minutes, arrival_minutes, finish_minutes, reminder_before_min, allow_extension,
+         status, create_by, create_time, update_by, update_time, remark, del_flag)
+        values
+        (#{ruleCode}, #{ruleName}, #{categoryId}, #{urgencyLevel}, #{priority}, #{effectiveFrom}, #{effectiveTo},
+         #{responseMinutes}, #{arrivalMinutes}, #{finishMinutes}, #{reminderBeforeMin}, #{allowExtension},
+         #{status}, #{createBy}, #{createTime}, '', null, #{remark}, '0')
+    </insert>
+
+    <update id="update">
+        update wo_sla_rule
+        set rule_name = #{ruleName}, category_id = #{categoryId}, urgency_level = #{urgencyLevel},
+            priority = #{priority}, effective_from = #{effectiveFrom}, effective_to = #{effectiveTo},
+            response_minutes = #{responseMinutes}, arrival_minutes = #{arrivalMinutes},
+            finish_minutes = #{finishMinutes}, reminder_before_min = #{reminderBeforeMin},
+            allow_extension = #{allowExtension}, status = #{status}, remark = #{remark},
+            update_by = #{updateBy}, update_time = #{updateTime}
+        where id = #{id} and del_flag = '0'
+    </update>
 </mapper>

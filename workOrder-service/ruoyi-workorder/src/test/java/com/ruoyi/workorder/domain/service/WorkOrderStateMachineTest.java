@@ -35,9 +35,10 @@ public class WorkOrderStateMachineTest
         assertTransition(WorkOrderStatus.PROCESSING, WorkOrderAction.ASSESS, WorkOrderStatus.PROCESSING);
         assertTransition(WorkOrderStatus.PROCESSING, WorkOrderAction.PROGRESS, WorkOrderStatus.PROCESSING);
         assertTransition(WorkOrderStatus.WAIT_CONFIRM, WorkOrderAction.RETURN, WorkOrderStatus.PROCESSING);
-        assertFalse(stateMachine.canApply(WorkOrderStatus.PROCESSING, WorkOrderAction.REQUEST_DELAY));
-        assertFalse(stateMachine.canApply(WorkOrderStatus.PROCESSING, WorkOrderAction.APPROVE_DELAY));
-        assertFalse(stateMachine.canApply(WorkOrderStatus.COMPLETED, WorkOrderAction.AUTO_CLOSE));
+        assertTransition(WorkOrderStatus.PROCESSING, WorkOrderAction.REQUEST_DELAY, WorkOrderStatus.PROCESSING);
+        assertTransition(WorkOrderStatus.PROCESSING, WorkOrderAction.APPROVE_DELAY, WorkOrderStatus.PROCESSING);
+        assertTransition(WorkOrderStatus.PROCESSING, WorkOrderAction.REJECT_DELAY, WorkOrderStatus.PROCESSING);
+        assertTransition(WorkOrderStatus.COMPLETED, WorkOrderAction.AUTO_CLOSE, WorkOrderStatus.CLOSED);
     }
 
     @Test(expected = IllegalWorkOrderTransitionException.class)

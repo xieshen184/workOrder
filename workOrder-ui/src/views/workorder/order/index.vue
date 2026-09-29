@@ -607,7 +607,11 @@ export default {
         keyword: undefined,
         status: undefined,
         categoryId: undefined,
-        urgencyLevel: undefined
+        urgencyLevel: undefined,
+        // 驾驶舱下钻使用的隐藏筛选；重置时会与普通筛选一起清除。
+        beginTime: undefined,
+        endTime: undefined,
+        slaRiskFlag: undefined
       },
       detailOpen: false,
       detailLoading: false,
@@ -716,12 +720,15 @@ export default {
       this.queryParams.status = routeQuery.status || undefined
       this.queryParams.categoryId = routeQuery.categoryId || undefined
       this.queryParams.urgencyLevel = routeQuery.urgencyLevel || undefined
+      this.queryParams.beginTime = routeQuery.beginTime || undefined
+      this.queryParams.endTime = routeQuery.endTime || undefined
+      this.queryParams.slaRiskFlag = routeQuery.slaRiskFlag || undefined
       this.queryParams.pageNum = parseInt(routeQuery.pageNum, 10) || 1
       this.queryParams.pageSize = parseInt(routeQuery.pageSize, 10) || 10
     },
     syncQueryToRoute() {
       if (!this.$router || !this.$route) return
-      const managedKeys = ['keyword', 'status', 'categoryId', 'urgencyLevel', 'pageNum', 'pageSize']
+      const managedKeys = ['keyword', 'status', 'categoryId', 'urgencyLevel', 'beginTime', 'endTime', 'slaRiskFlag', 'pageNum', 'pageSize']
       const query = Object.assign({}, this.$route.query)
       managedKeys.forEach(key => { delete query[key] })
       const listQuery = this.buildListQuery()
@@ -735,7 +742,7 @@ export default {
         pageNum: this.queryParams.pageNum,
         pageSize: this.queryParams.pageSize
       }
-      ;['keyword', 'status', 'categoryId', 'urgencyLevel'].forEach(key => {
+      ;['keyword', 'status', 'categoryId', 'urgencyLevel', 'beginTime', 'endTime', 'slaRiskFlag'].forEach(key => {
         const value = this.queryParams[key]
         if (value !== undefined && value !== null && value !== '') query[key] = value
       })
@@ -785,6 +792,9 @@ export default {
       this.queryParams.status = undefined
       this.queryParams.categoryId = undefined
       this.queryParams.urgencyLevel = undefined
+      this.queryParams.beginTime = undefined
+      this.queryParams.endTime = undefined
+      this.queryParams.slaRiskFlag = undefined
       this.queryParams.pageNum = 1
       this.syncQueryToRoute()
       this.getList()

@@ -65,7 +65,7 @@ public class CommonController
         }
         catch (Exception e)
         {
-            log.error("下载文件失败", e);
+            log.error("File download failed, exception={}", e.getClass().getName());
         }
     }
 
@@ -91,7 +91,8 @@ public class CommonController
         }
         catch (Exception e)
         {
-            return AjaxResult.error(e.getMessage());
+            log.warn("File upload rejected, exception={}", e.getClass().getName());
+            return AjaxResult.error("文件上传失败，请检查文件类型和大小");
         }
     }
 
@@ -128,7 +129,8 @@ public class CommonController
         }
         catch (Exception e)
         {
-            return AjaxResult.error(e.getMessage());
+            log.warn("Batch file upload rejected, exception={}", e.getClass().getName());
+            return AjaxResult.error("文件上传失败，请检查文件类型和大小");
         }
     }
 
@@ -157,7 +159,7 @@ public class CommonController
         }
         catch (Exception e)
         {
-            log.error("下载文件失败", e);
+            log.error("Resource download failed, exception={}", e.getClass().getName());
         }
     }
 }

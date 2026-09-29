@@ -15,17 +15,20 @@ import com.ruoyi.workorder.domain.model.WorkOrderAssignment;
 import com.ruoyi.workorder.domain.model.WorkOrderAttachmentStage;
 import com.ruoyi.workorder.domain.model.WorkOrderEngineer;
 import com.ruoyi.workorder.domain.model.WorkOrderEvaluation;
+import com.ruoyi.workorder.domain.model.WorkOrderNotificationEvent;
 import com.ruoyi.workorder.domain.model.WorkOrderProcessRecord;
 import com.ruoyi.workorder.domain.model.WorkOrderStatus;
 import com.ruoyi.workorder.domain.service.WorkOrderCommandPolicy;
 import com.ruoyi.workorder.mapper.WorkOrderActionLogMapper;
 import com.ruoyi.workorder.mapper.WorkOrderAssignmentMapper;
 import com.ruoyi.workorder.mapper.WorkOrderAttachmentMapper;
+import com.ruoyi.workorder.mapper.WorkOrderDelayRequestMapper;
 import com.ruoyi.workorder.mapper.WorkOrderEngineerMapper;
 import com.ruoyi.workorder.mapper.WorkOrderEvaluationMapper;
 import com.ruoyi.workorder.mapper.WorkOrderMapper;
 import com.ruoyi.workorder.mapper.WorkOrderProcessRecordMapper;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -40,12 +43,14 @@ public class WorkOrderCommandTransaction
     private final WorkOrderAttachmentMapper attachmentMapper;
     private final WorkOrderEngineerMapper engineerMapper;
     private final WorkOrderEvaluationMapper evaluationMapper;
+    private final WorkOrderDelayRequestMapper delayRequestMapper;
     private final WorkOrderCommandPolicy policy = new WorkOrderCommandPolicy();
+    @Autowired private WorkOrderNotificationOutboxService notificationOutbox;
 
     public WorkOrderCommandTransaction(WorkOrderMapper orderMapper, WorkOrderActionLogMapper actionLogMapper,
             WorkOrderAssignmentMapper assignmentMapper, WorkOrderProcessRecordMapper processRecordMapper,
             WorkOrderAttachmentMapper attachmentMapper, WorkOrderEngineerMapper engineerMapper,
-            WorkOrderEvaluationMapper evaluationMapper)
+            WorkOrderEvaluationMapper evaluationMapper, WorkOrderDelayRequestMapper delayRequestMapper)
     {
         this.orderMapper = orderMapper;
         this.actionLogMapper = actionLogMapper;
@@ -54,6 +59,7 @@ public class WorkOrderCommandTransaction
         this.attachmentMapper = attachmentMapper;
         this.engineerMapper = engineerMapper;
         this.evaluationMapper = evaluationMapper;
+        this.delayRequestMapper = delayRequestMapper;
     }
 
     @Transactional(rollbackFor = Exception.class)
@@ -86,6 +92,18 @@ public class WorkOrderCommandTransaction
         if (changed != 1)
             throw new ServiceException("WO_VERSION_CONFLICT: 工单已被其他请求更新", HttpStatus.CONFLICT);
 
+        if ((command.getAction() == WorkOrderAction.FINISH || command.getAction() == WorkOrderAction.REASSIGN)
+                && "1".equals(order.getDelayPendingFlag()))
+        {
+            String cancelReason = command.getAction() == WorkOrderAction.FINISH
+                    ? "工单已完工，待审延期自动取消"
+                    : "工单已改派，原处理人的待审延期自动取消";
+            int cancelled = delayRequestMapper.cancelPendingByOrderId(order.getId(), actor.getUserId(),
+                    actor.getDisplayName(), cancelReason, now);
+            if (cancelled != 1)
+                throw new ServiceException("WO_DELAY_CONFLICT: 待审延期记录异常，无法继续操作", HttpStatus.CONFLICT);
+        }
+
         if (command.getAction() == WorkOrderAction.ASSIGN || command.getAction() == WorkOrderAction.REASSIGN)
             writeAssignment(order, command, actor, engineer, now);
         else if (command.getAction() == WorkOrderAction.ACCEPT)
@@ -103,7 +121,66 @@ public class WorkOrderCommandTransaction
         int newVersion = command.getVersion() + 1;
         WorkOrderActionLog log = actionLog(order, command, actor, target, now, newVersion, process, evaluation);
         actionLogMapper.insert(log);
+        publishNotification(order, command, actor, engineer, now);
         return new WorkOrderCommandResult(order.getId(), order.getOrderNo(), target.getCode(), newVersion, false);
+    }
+
+    private void publishNotification(WorkOrder order, WorkOrderCommand command, WorkOrderActor actor,
+            WorkOrderEngineer engineer, Date now)
+    {
+        if (notificationOutbox == null) return;
+        String baseKey = "order:" + order.getId() + ":" + command.getAction().name().toLowerCase()
+                + ":" + actor.getUserId() + ":" + command.getIdempotencyKey();
+        if (command.getAction() == WorkOrderAction.ASSIGN)
+        {
+            publish("ASSIGN", baseKey, order, engineer.getId(), actor, command.getReason(), now);
+        }
+        else if (command.getAction() == WorkOrderAction.REASSIGN)
+        {
+            if (order.getCurrentAssigneeId() != null)
+                publish("REASSIGN_OLD", baseKey + ":old", order, order.getCurrentAssigneeId(), actor,
+                        command.getReason(), now);
+            publish("REASSIGN_NEW", baseKey + ":new", order, engineer.getId(), actor, command.getReason(), now);
+        }
+        else if (command.getAction() == WorkOrderAction.FINISH)
+        {
+            publish("FINISH", baseKey, order, order.getApplicantId(), actor, command.getContent(), now);
+        }
+        else if (command.getAction() == WorkOrderAction.ACCEPT)
+        {
+            publish("ACCEPT", baseKey, order, order.getApplicantId(), actor, null, now);
+        }
+        else if (command.getAction() == WorkOrderAction.ARRIVE)
+        {
+            publish("ARRIVE", baseKey, order, order.getApplicantId(), actor, command.getContent(), now);
+        }
+        else if (command.getAction() == WorkOrderAction.PROGRESS)
+        {
+            publish("PROGRESS", baseKey, order, order.getApplicantId(), actor, command.getContent(), now);
+        }
+        else if (command.getAction() == WorkOrderAction.RETURN)
+        {
+            publish("RETURN", baseKey, order, order.getCurrentAssigneeId(), actor, command.getReason(), now);
+        }
+        else if (command.getAction() == WorkOrderAction.CONFIRM)
+        {
+            publish("CONFIRM", baseKey, order, order.getCurrentAssigneeId(), actor, null, now);
+        }
+        else if (command.getAction() == WorkOrderAction.EVALUATE)
+        {
+            publish("EVALUATE", baseKey, order, order.getCurrentAssigneeId(), actor, command.getContent(), now);
+        }
+        else if (command.getAction() == WorkOrderAction.CANCEL)
+        {
+            publish("CANCEL", baseKey, order, null, actor, command.getReason(), now);
+        }
+    }
+
+    private void publish(String eventCode, String eventKey, WorkOrder order, Long targetUserId,
+            WorkOrderActor actor, String reason, Date now)
+    {
+        notificationOutbox.publish(new WorkOrderNotificationEvent(eventCode, eventKey, order, targetUserId,
+                actor.getDisplayName(), reason, order.getFinishDeadline(), now));
     }
 
     private WorkOrderEngineer resolveEngineer(WorkOrderCommand command)

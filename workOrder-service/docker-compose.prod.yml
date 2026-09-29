@@ -1,0 +1,40 @@
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      SPRING_PROFILES_ACTIVE: prod
+      DB_URL: "${DB_URL:?Set DB_URL to the managed MySQL JDBC URL}"
+      DB_USERNAME: "${DB_USERNAME:?Set DB_USERNAME to the managed MySQL application user}"
+      DB_PASSWORD: "${DB_PASSWORD:?Set DB_PASSWORD to the managed MySQL password}"
+      REDIS_HOST: "${REDIS_HOST:?Set REDIS_HOST to the managed Redis host}"
+      REDIS_PORT: "${REDIS_PORT:?Set REDIS_PORT to the managed Redis port}"
+      REDIS_DATABASE: "${REDIS_DATABASE:?Set REDIS_DATABASE to the managed Redis database index}"
+      REDIS_PASSWORD: "${REDIS_PASSWORD:?Set REDIS_PASSWORD to the managed Redis password}"
+      REDIS_TIMEOUT: "${REDIS_TIMEOUT:-10s}"
+      TOKEN_SECRET: "${TOKEN_SECRET:?Set TOKEN_SECRET to a long random production secret}"
+      WORKORDER_UPLOAD_PATH: "${WORKORDER_UPLOAD_PATH:?Set WORKORDER_UPLOAD_PATH to /data/workorder/upload}"
+      CORS_ALLOWED_ORIGINS: "${CORS_ALLOWED_ORIGINS:?Set CORS_ALLOWED_ORIGINS to an explicit production origin list}"
+      SWAGGER_ENABLED: "false"
+      DRUID_ENABLED: "false"
+      DEVTOOLS_ENABLED: "false"
+      TZ: "${TZ:-Asia/Shanghai}"
+    user: "10001:10001"
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=64m
+    ports:
+      - "${BACKEND_BIND_ADDRESS:-127.0.0.1}:${BACKEND_HOST_PORT:-8080}:8080"
+    volumes:
+      - workorder_upload_data:/data/workorder/upload
+      - workorder_log_data:/var/log/workorder
+
+volumes:
+  workorder_upload_data:
+  workorder_log_data:

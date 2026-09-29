@@ -93,6 +93,11 @@ public class WorkOrderQueryServiceTest
         @Override public WorkOrder selectByOrderNo(String orderNo) { return null; }
         @Override public WorkOrder selectScopedById(WorkOrderQuery query) { return null; }
         @Override public List<WorkOrder> selectList(WorkOrderQuery query) { return null; }
+        @Override public List<WorkOrder> selectSlaOpenOrders() { return Collections.emptyList(); }
+        @Override public List<WorkOrder> selectAutoCloseCandidates(Date before) { return Collections.emptyList(); }
+        @Override public int updateSlaFlags(Long id, String status, String warning, String overdue, String response,
+                String arrival, String finish, Date time) { return 0; }
+        @Override public int autoClose(Long id, Integer version, Date closedAt) { return 0; }
         @Override public int applyCommand(Long id, String source, String target, Integer version,
                 String action, Long engineerId, String engineerName, Date time, String updateBy) { return 0; }
     }

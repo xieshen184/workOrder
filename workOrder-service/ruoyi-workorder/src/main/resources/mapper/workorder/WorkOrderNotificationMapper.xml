@@ -1,0 +1,217 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.ruoyi.workorder.mapper.WorkOrderNotificationMapper">
+    <resultMap id="TemplateResult" type="com.ruoyi.workorder.domain.model.WorkOrderNotificationTemplate">
+        <id property="id" column="id"/><result property="eventCode" column="event_code"/>
+        <result property="category" column="category"/><result property="channel" column="channel"/>
+        <result property="templateName" column="template_name"/>
+        <result property="titleTemplate" column="title_template"/>
+        <result property="contentTemplate" column="content_template"/><result property="maxRetry" column="max_retry"/>
+        <result property="enabledFlag" column="enabled_flag"/><result property="updateBy" column="update_by"/>
+        <result property="updateTime" column="update_time"/><result property="remark" column="remark"/>
+    </resultMap>
+
+    <sql id="templateColumns">
+        id, event_code, channel, category, template_name, title_template, content_template,
+        enabled_flag, max_retry, update_by, update_time, remark
+    </sql>
+
+    <resultMap id="RecipientResult" type="com.ruoyi.workorder.domain.model.WorkOrderNotificationRecipient">
+        <id property="userId" column="user_id"/><result property="userName" column="user_name"/>
+        <result property="nickName" column="nick_name"/><result property="phoneNumber" column="phonenumber"/>
+    </resultMap>
+
+    <resultMap id="TaskResult" type="com.ruoyi.workorder.domain.model.WorkOrderNotificationTask">
+        <id property="id" column="id"/><result property="eventKey" column="event_key"/>
+        <result property="eventCode" column="event_code"/><result property="category" column="category"/>
+        <result property="channel" column="channel"/><result property="recipientId" column="recipient_id"/>
+        <result property="recipientName" column="recipient_name"/><result property="recipientAddress" column="recipient_address"/>
+        <result property="businessType" column="business_type"/><result property="businessId" column="business_id"/>
+        <result property="orderNo" column="order_no"/><result property="title" column="title"/>
+        <result property="content" column="content"/><result property="routePath" column="route_path"/>
+        <result property="routeParams" column="route_params"/><result property="status" column="status"/>
+        <result property="retryCount" column="retry_count"/><result property="maxRetry" column="max_retry"/>
+        <result property="nextRetryAt" column="next_retry_at"/><result property="lockedBy" column="locked_by"/>
+        <result property="lockedAt" column="locked_at"/><result property="lastError" column="last_error"/>
+        <result property="sentAt" column="sent_at"/><result property="createTime" column="create_time"/>
+        <result property="updateTime" column="update_time"/>
+    </resultMap>
+
+    <resultMap id="MessageResult" type="com.ruoyi.workorder.domain.model.WorkOrderNotificationMessage">
+        <id property="id" column="id"/><result property="taskId" column="task_id"/>
+        <result property="recipientId" column="recipient_id"/><result property="category" column="category"/>
+        <result property="eventCode" column="event_code"/><result property="title" column="title"/>
+        <result property="content" column="content"/><result property="businessType" column="business_type"/>
+        <result property="businessId" column="business_id"/><result property="orderNo" column="order_no"/>
+        <result property="routePath" column="route_path"/><result property="routeParams" column="route_params"/>
+        <result property="readFlag" column="read_flag"/><result property="readAt" column="read_at"/>
+        <result property="createTime" column="create_time"/>
+    </resultMap>
+
+    <sql id="taskColumns">
+        id, event_key, event_code, category, channel, recipient_id, recipient_name,
+        recipient_address, business_type, business_id, order_no, title, content,
+        route_path, route_params, status, retry_count, max_retry, next_retry_at,
+        locked_by, locked_at, last_error, sent_at, create_time, update_time
+    </sql>
+
+    <sql id="taskColumnsAliased">
+        t.id, t.event_key, t.event_code, t.category, t.channel, t.recipient_id, t.recipient_name,
+        t.recipient_address, t.business_type, t.business_id, t.order_no, t.title, t.content,
+        t.route_path, t.route_params, t.status, t.retry_count, t.max_retry, t.next_retry_at,
+        t.locked_by, t.locked_at, t.last_error, t.sent_at, t.create_time, t.update_time
+    </sql>
+
+    <select id="selectEnabledTemplates" resultMap="TemplateResult">
+        select <include refid="templateColumns"/>
+        from wo_notification_template
+        where event_code = #{eventCode} and enabled_flag = '1'
+        order by id
+    </select>
+
+    <select id="selectTemplates" resultMap="TemplateResult">
+        select <include refid="templateColumns"/> from wo_notification_template
+        <where>
+            <if test="eventCode != null and eventCode != ''">event_code = #{eventCode}</if>
+            <if test="category != null and category != ''">and category = #{category}</if>
+            <if test="channel != null and channel != ''">and channel = #{channel}</if>
+            <if test="enabledFlag != null and enabledFlag != ''">and enabled_flag = #{enabledFlag}</if>
+        </where>
+        order by category, event_code, channel
+    </select>
+
+    <select id="selectTemplateById" resultMap="TemplateResult">
+        select <include refid="templateColumns"/> from wo_notification_template where id = #{id}
+    </select>
+
+    <update id="updateTemplate">
+        update wo_notification_template
+        set template_name = #{templateName}, title_template = #{titleTemplate},
+            content_template = #{contentTemplate}, enabled_flag = #{enabledFlag},
+            max_retry = #{maxRetry}, update_by = #{updateBy}, update_time = #{updateTime},
+            remark = #{remark}
+        where id = #{id}
+    </update>
+
+    <select id="selectRecipientsByRole" resultMap="RecipientResult">
+        select distinct u.user_id, u.user_name, u.nick_name, u.phonenumber
+        from sys_user u
+        join sys_user_role ur on ur.user_id = u.user_id
+        join sys_role r on r.role_id = ur.role_id
+        where r.role_key = #{roleKey} and r.status = '0' and r.del_flag = '0'
+          and u.status = '0' and u.del_flag = '0'
+        order by u.user_id
+    </select>
+
+    <select id="selectRecipientById" resultMap="RecipientResult">
+        select user_id, user_name, nick_name, phonenumber from sys_user
+        where user_id = #{userId} and status = '0' and del_flag = '0'
+    </select>
+
+    <insert id="insertTask" parameterType="com.ruoyi.workorder.domain.model.WorkOrderNotificationTask"
+            useGeneratedKeys="true" keyProperty="id">
+        insert into wo_notification_task
+        (event_key, event_code, category, channel, recipient_id, recipient_name, recipient_address,
+         business_type, business_id, order_no, title, content, route_path, route_params,
+         status, retry_count, max_retry, next_retry_at, create_time, update_time)
+        values
+        (#{eventKey}, #{eventCode}, #{category}, #{channel}, #{recipientId}, #{recipientName}, #{recipientAddress},
+         #{businessType}, #{businessId}, #{orderNo}, #{title}, #{content}, #{routePath}, #{routeParams},
+         #{status}, #{retryCount}, #{maxRetry}, #{nextRetryAt}, #{createTime}, #{updateTime})
+    </insert>
+
+    <select id="selectMessages" resultMap="MessageResult">
+        select id, task_id, recipient_id, category, event_code, title, content, business_type,
+               business_id, order_no, route_path, route_params, read_flag, read_at, create_time
+        from wo_notification_message
+        where recipient_id = #{recipientId}
+        <if test="query != null and query.category != null and query.category != ''">
+            and category = #{query.category}
+        </if>
+        <if test="query != null and query.readStatus != null and query.readStatus != ''">
+            and read_flag = #{query.readStatus}
+        </if>
+        order by create_time desc, id desc
+    </select>
+
+    <select id="countUnreadByCategory" resultType="java.util.HashMap">
+        select category, count(*) total from wo_notification_message
+        where recipient_id = #{recipientId} and read_flag = '0'
+        group by category
+    </select>
+
+    <update id="markRead">
+        update wo_notification_message set read_flag = '1', read_at = #{readAt}
+        where id = #{id} and recipient_id = #{recipientId} and read_flag = '0'
+    </update>
+
+    <update id="markAllRead">
+        update wo_notification_message set read_flag = '1', read_at = #{readAt}
+        where recipient_id = #{recipientId} and read_flag = '0'
+        <if test="category != null and category != ''">and category = #{category}</if>
+    </update>
+
+    <select id="selectDueTaskIds" resultType="long">
+        select id from wo_notification_task
+        where ((status in ('PENDING', 'RETRY') and next_retry_at &lt;= #{now})
+            or (status = 'PROCESSING' and locked_at &lt;= #{lockExpiredAt}))
+        order by next_retry_at, id limit #{limit}
+    </select>
+
+    <update id="claimTask">
+        update wo_notification_task
+        set status = 'PROCESSING', locked_by = #{workerId}, locked_at = #{now}, update_time = #{now}
+        where id = #{id}
+          and ((status in ('PENDING', 'RETRY') and next_retry_at &lt;= #{now})
+            or (status = 'PROCESSING' and locked_at &lt;= #{lockExpiredAt}))
+    </update>
+
+    <select id="selectTaskById" resultMap="TaskResult">
+        select <include refid="taskColumns"/> from wo_notification_task where id = #{id}
+    </select>
+
+    <insert id="insertMessage" parameterType="com.ruoyi.workorder.domain.model.WorkOrderNotificationMessage"
+            useGeneratedKeys="true" keyProperty="id">
+        insert into wo_notification_message
+        (task_id, recipient_id, category, event_code, title, content, business_type,
+         business_id, order_no, route_path, route_params, read_flag, create_time)
+        values
+        (#{taskId}, #{recipientId}, #{category}, #{eventCode}, #{title}, #{content}, #{businessType},
+         #{businessId}, #{orderNo}, #{routePath}, #{routeParams}, #{readFlag}, #{createTime})
+    </insert>
+
+    <update id="markSuccess">
+        update wo_notification_task set status = 'SUCCESS', sent_at = #{sentAt}, update_time = #{sentAt},
+            locked_by = null, locked_at = null, last_error = null
+        where id = #{id} and status = 'PROCESSING' and locked_by = #{workerId}
+    </update>
+
+    <update id="markFailure">
+        update wo_notification_task set status = #{status}, retry_count = #{retryCount},
+            next_retry_at = #{nextRetryAt}, last_error = #{lastError}, update_time = #{updateTime},
+            locked_by = null, locked_at = null
+        where id = #{id} and status = 'PROCESSING' and locked_by = #{workerId}
+    </update>
+
+    <select id="selectTasks" resultMap="TaskResult">
+        select <include refid="taskColumnsAliased"/> from wo_notification_task t
+        left join wo_order o on o.id = t.business_id and t.business_type = 'WORK_ORDER'
+        left join sys_user u on u.user_id = o.applicant_id
+        left join sys_dept d on d.dept_id = o.applicant_dept_id
+        <where>
+            <if test="status != null and status != ''">t.status = #{status}</if>
+            <if test="channel != null and channel != ''">and t.channel = #{channel}</if>
+            <if test="category != null and category != ''">and t.category = #{category}</if>
+            <if test="eventCode != null and eventCode != ''">and t.event_code = #{eventCode}</if>
+            <if test="orderNo != null and orderNo != ''">and t.order_no like concat('%', #{orderNo}, '%')</if>
+            ${params.dataScope}
+        </where>
+        order by t.create_time desc, t.id desc
+    </select>
+
+    <update id="manualRetry">
+        update wo_notification_task set status = 'PENDING', retry_count = 0, next_retry_at = #{now},
+            locked_by = null, locked_at = null, last_error = null, update_time = #{now}
+        where id = #{id} and status in ('RETRY', 'DEAD')
+    </update>
+</mapper>

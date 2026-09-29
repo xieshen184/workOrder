@@ -13,6 +13,9 @@ public class WorkOrderQuery extends BaseEntity
     private Integer urgencyLevel;
     private Long applicantId;
     private Long currentAssigneeId;
+    private String beginTime;
+    private String endTime;
+    private String slaRiskFlag;
 
     public Long getId() { return id; }
     public void setId(Long id) { this.id = id; }
@@ -28,4 +31,10 @@ public class WorkOrderQuery extends BaseEntity
     public void setApplicantId(Long applicantId) { this.applicantId = applicantId; }
     public Long getCurrentAssigneeId() { return currentAssigneeId; }
     public void setCurrentAssigneeId(Long currentAssigneeId) { this.currentAssigneeId = currentAssigneeId; }
+    public String getBeginTime() { return beginTime; }
+    public void setBeginTime(String beginTime) { this.beginTime = beginTime; }
+    public String getEndTime() { return endTime; }
+    public void setEndTime(String endTime) { this.endTime = endTime; }
+    public String getSlaRiskFlag() { return slaRiskFlag; }
+    public void setSlaRiskFlag(String slaRiskFlag) { this.slaRiskFlag = slaRiskFlag; }
 }

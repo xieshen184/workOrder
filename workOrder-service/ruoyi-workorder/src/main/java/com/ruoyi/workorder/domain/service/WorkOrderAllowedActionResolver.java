@@ -26,6 +26,10 @@ public class WorkOrderAllowedActionResolver
         add(result, status, WorkOrderAction.ARRIVE, assignee, actor, "workorder:order:arrive");
         add(result, status, WorkOrderAction.ASSESS, assignee, actor, "workorder:order:assess");
         add(result, status, WorkOrderAction.PROGRESS, assignee, actor, "workorder:order:progress");
+        if (assignee && actor.hasPermission("workorder:delay:add")
+                && "1".equals(order.getSlaAllowExtension())
+                && stateMachine.canApply(status, WorkOrderAction.REQUEST_DELAY))
+            result.add(WorkOrderAction.REQUEST_DELAY.name());
         add(result, status, WorkOrderAction.FINISH, assignee, actor, "workorder:order:finish");
         add(result, status, WorkOrderAction.CONFIRM, applicant, actor, "workorder:order:confirm");
         add(result, status, WorkOrderAction.RETURN, applicant || dispatcher, actor, "workorder:order:return");
