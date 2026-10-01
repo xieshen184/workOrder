@@ -28,7 +28,15 @@ D:\person\workspace\workOrder-ui\
 
 ## 数据库初始化脚本
 
-开发 Compose 首次创建 MySQL 数据卷时，按以下顺序执行 01–13 脚本：
+全链路联调和第一轮回归统一执行一个入口：
+
+~~~text
+sql/00_workorder_full_init.sql
+~~~
+
+该文件面向 MySQL 8.0，会创建并使用 `workorder` 数据库，依次完成若依基础表、Quartz、工单业务表、字典、菜单、三角色权限、基础业务数据、定时任务、运营配置和联调账号初始化。基础脚本会删除并重建若依及 Quartz 系统表，因此只允许在全新或可丢弃的本地、联调、回归数据库执行，禁止直接用于生产存量数据库升级。
+
+`00_workorder_full_init.sql` 由以下分片按依赖顺序自动生成：
 
 | 序号 | 文件 |
 |---|---|
@@ -45,8 +53,25 @@ D:\person\workspace\workOrder-ui\
 | 11 | sql/11_workorder_f01_sla_delay.sql |
 | 12 | sql/12_workorder_f02_notification.sql |
 | 13 | sql/13_workorder_f04_operations.sql |
+| 14 | sql/14_workorder_integration_seed.sql |
 
-这些脚本只会由 MySQL 镜像在空数据目录初始化时自动执行。已有数据卷不会自动重放新增脚本，需要按变更要求手动执行，或在可丢弃的本地环境中重新创建数据卷。
+修改任一分片后必须重新生成总文件：
+
+~~~powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\bin\build-full-init-sql.ps1
+~~~
+
+生成器会在总文件内记录每个分片的 SHA-256，并由契约测试检查分片内容是否完整进入总文件。Docker Compose 只挂载总文件；MySQL 镜像只会在空数据目录初始化时自动执行。已有数据卷不会自动重放 SQL，需要按变更要求手动执行增量脚本，或仅在确认数据可丢弃后重建本地数据卷。
+
+完整初始化包含以下仅限本地和测试环境使用的账号，初始密码均为 `admin123`：
+
+| 账号 | 用途 | 角色键 |
+|---|---|---|
+| `wo_reporter` | 小程序报修与确认评价 | `workorder_reporter` |
+| `wo_engineer` | 小程序接单与维修处理 | `workorder_engineer` |
+| `wo_dispatcher` | PC 调度与运营配置 | `workorder_dispatcher` |
+
+进入共享测试环境后应立即修改密码；生产环境不得执行 `14_workorder_integration_seed.sql`。
 
 ## 构建与本地启动
 
@@ -84,7 +109,7 @@ Copy-Item .env.example .env
 | TOKEN_SECRET | 本地 JWT 密钥 |
 | SWAGGER_ENABLED | 本地 Swagger 开关，由 .env 明确指定 |
 
-MYSQL_DATABASE 可以保持与初始化脚本匹配的数据库名。开发 Compose 默认在 127.0.0.1 上暴露 MySQL、Redis 和后端端口；需要调整时使用 MYSQL_HOST_PORT、REDIS_HOST_PORT、BACKEND_HOST_PORT 等本地变量。Redis 服务默认不启用认证，REDIS_PASSWORD 留空即可。
+本地 Compose 的数据库名固定为 `workorder`，必须与完整初始化 SQL 及 `DB_URL` 保持一致。开发 Compose 默认在 127.0.0.1 上暴露 MySQL、Redis 和后端端口；需要调整时使用 MYSQL_HOST_PORT、REDIS_HOST_PORT、BACKEND_HOST_PORT 等本地变量。Redis 服务默认不启用认证，REDIS_PASSWORD 留空即可。
 
 校验并启动基础设施：
 

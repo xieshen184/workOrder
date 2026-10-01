@@ -197,7 +197,7 @@
 <script>
 import Treeselect from '@riophae/vue-treeselect'
 import '@riophae/vue-treeselect/dist/vue-treeselect.css'
-import { deptTreeSelect } from '@/api/system/user'
+import { deptTreeSelect } from '@/api/system/dept'
 import { listCategories } from '@/api/workorder/order'
 import { listEngineers } from '@/api/workorder/engineer'
 import { getPerformance } from '@/api/workorder/analytics'
@@ -587,6 +587,15 @@ export default {
   border: 1px solid #ebeef5;
 }
 
+/*
+ * Element Card 默认裁切超出区域。组织树菜单采用绝对定位，必须让筛选卡片
+ * 及其内容区域允许溢出，才能在卡片外完整展开并覆盖下方的指标卡片。
+ */
+.filter-card,
+.filter-card ::v-deep .el-card__body {
+  overflow: visible;
+}
+
 .filter-card ::v-deep .el-card__body {
   padding: 18px 18px 2px;
 }
@@ -601,6 +610,21 @@ export default {
 
 .dept-select {
   width: 190px;
+}
+
+/*
+ * 组织树由第三方组件通过绝对定位展示。明确指定高度、滚动和层级，
+ * 防止较长的组织树被筛选卡片或后续内容遮挡，从而无法查看完整节点。
+ */
+.dept-form-item {
+  position: relative;
+  z-index: 2;
+}
+
+.dept-select ::v-deep .vue-treeselect__menu {
+  z-index: 3000;
+  max-height: 320px;
+  overflow-y: auto;
 }
 
 .engineer-select,

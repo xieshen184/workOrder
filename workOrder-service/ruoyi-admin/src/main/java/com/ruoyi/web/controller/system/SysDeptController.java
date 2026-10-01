@@ -46,6 +46,20 @@ public class SysDeptController extends BaseController
     }
 
     /**
+     * Returns the department tree used by business-page selectors.
+     *
+     * <p>The user-management department tree requires {@code system:user:list}.
+     * Business pages only need department metadata, so exposing this endpoint
+     * under {@code system:dept:list} preserves least-privilege access.</p>
+     */
+    @PreAuthorize("@ss.hasPermi('system:dept:list')")
+    @GetMapping("/treeselect")
+    public AjaxResult treeselect(SysDept dept)
+    {
+        return success(deptService.selectDeptTreeList(dept));
+    }
+
+    /**
      * 查询部门列表（排除节点）
      */
     @PreAuthorize("@ss.hasPermi('system:dept:list')")

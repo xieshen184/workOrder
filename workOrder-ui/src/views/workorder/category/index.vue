@@ -147,7 +147,7 @@
 <script>
 import Treeselect from '@riophae/vue-treeselect'
 import '@riophae/vue-treeselect/dist/vue-treeselect.css'
-import { deptTreeSelect } from '@/api/system/user'
+import { deptTreeSelect } from '@/api/system/dept'
 import { listManagedCategories, getCategory, addCategory, updateCategory } from '@/api/workorder/category'
 
 export default {

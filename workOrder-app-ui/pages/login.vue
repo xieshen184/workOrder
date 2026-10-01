@@ -12,7 +12,8 @@
       </view>
       <view class="input-item flex align-center">
         <view class="iconfont icon-password icon"></view>
-        <input v-model="loginForm.password" type="password" class="input" placeholder="请输入密码" maxlength="20" />
+        <!-- 小程序端使用 password 布尔属性控制掩码；type=password 会被降级为普通文本。 -->
+        <input v-model="loginForm.password" :password="true" class="input" placeholder="请输入密码" maxlength="20" />
       </view>
       <view class="input-item flex align-center" style="width: 60%;margin: 0px;" v-if="captchaEnabled">
         <view class="iconfont icon-code icon"></view>

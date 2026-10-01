@@ -111,6 +111,7 @@ WHERE @wo_dispatcher_role_id IS NOT NULL
       'workorder/engineer/index',
       'workorder/category/index'
     ))
+    OR menu.perms = 'system:dept:list'
     OR (menu.menu_type = 'F' AND menu.perms IN (
       'workorder:order:list',
       'workorder:order:query',

@@ -40,6 +40,16 @@ export async function getDashboardSnapshot(permissions) {
 
   const tasks = [{ key: 'TOTAL', promise: count(url, '') }]
     .concat(STATUS_KEYS.map(status => ({ key: status, promise: count(url, status) })))
+
+  // “待评价”只能统计当前登录人作为报修人的已完成工单。
+  // 管理员和工程师的首页主统计可能使用管理端或工程师端列表，不能复用其中的 COMPLETED 数量，
+  // 否则卡片数量会与评价页固定使用的“我的工单”接口不一致。
+  if (hasPermission(permissions, 'workorder:evaluation:add')) {
+    tasks.push({
+      key: 'PENDING_EVALUATION',
+      promise: count('/workorder/orders/my', 'COMPLETED')
+    })
+  }
   const values = {}
   const failed = []
 

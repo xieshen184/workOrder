@@ -2,7 +2,7 @@
   <view class="page-container">
     <u-navbar
       title="满意度评价"
-      :is-back="true"
+      :auto-back="true"
       background="#36CFC9"
       title-color="#ffffff"
       left-icon-color="#ffffff"
@@ -101,7 +101,7 @@
               <view v-else class="order-rating">
                 <view class="rating-stars">
                   <u-icon
-                    v-for="star in 5"
+                    v-for="star in ratingOptions"
                     :key="star"
                     :name="star <= evaluationScore(order.evaluation) ? 'star-fill' : 'star'"
                     color="#FF9C07"
@@ -141,6 +141,8 @@ export default {
         { name: '已评价', status: 'CLOSED' }
       ],
       tabStates: [this.createTabState(), this.createTabState()],
+      // 使用显式 1~5，避免微信小程序把数字循环编译成 0~4。
+      ratingOptions: [1, 2, 3, 4, 5],
       pageSize: 10,
       scrollTop: 0,
       hasShown: false

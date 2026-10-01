@@ -3,7 +3,7 @@
     <!-- 顶部导航栏 -->
     <u-navbar 
       title="工单派发详情" 
-      :is-back="true"
+      :auto-back="true"
       background="#722ED1"
       title-color="#ffffff"
       left-icon-color="#ffffff"

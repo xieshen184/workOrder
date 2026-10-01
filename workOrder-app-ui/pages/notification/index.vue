@@ -2,11 +2,12 @@
   <view class="page-container">
     <u-navbar
       title="消息中心"
-      :is-back="true"
+      :auto-back="false"
       background="#FFFFFF"
       title-color="#273444"
       left-icon-color="#445466"
       :border-bottom="false"
+      @leftClick="backToPreviousPage"
     >
       <view slot="right" class="mark-all-action" :class="{ disabled: markAllLoading }" @click="markAllRead">
         {{ markAllLoading ? '处理中' : '全部已读' }}
@@ -187,6 +188,16 @@ export default {
   },
 
   methods: {
+    // 调试器可能将消息中心作为页面栈唯一页面打开；此时 navigateBack 无效，
+    // 统一退回首页，正常从上一页进入时仍按页面栈返回。
+    backToPreviousPage() {
+      if (getCurrentPages().length > 1) {
+        uni.navigateBack()
+        return
+      }
+      uni.switchTab({ url: '/pages/index' })
+    },
+
     switchTab(index) {
       if (index === this.activeTab) return
       this.activeTab = index

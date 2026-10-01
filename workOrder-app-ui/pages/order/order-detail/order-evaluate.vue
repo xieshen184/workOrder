@@ -2,7 +2,7 @@
   <view class="page-container">
     <u-navbar
       :title="isEvaluated ? '评价详情' : '评价工单'"
-      :is-back="true"
+      :auto-back="true"
       background="#36CFC9"
       title-color="#ffffff"
       left-icon-color="#ffffff"
@@ -60,7 +60,7 @@
               <text class="score-label">您的满意度评价：</text>
               <view class="rating-stars">
                 <u-icon
-                  v-for="star in 5"
+                  v-for="star in ratingOptions"
                   :key="star"
                   :name="star <= evaluationDetail.score ? 'star-fill' : 'star'"
                   color="#FF9C07"
@@ -92,7 +92,7 @@
               <text class="score-label">请评价您对本次服务的满意度：</text>
               <view class="star-container">
                 <view
-                  v-for="star in 5"
+                  v-for="star in ratingOptions"
                   :key="star"
                   class="star-item"
                   :class="{ active: star <= evaluation.score }"
@@ -147,6 +147,9 @@ export default {
       orderId: '',
       order: {},
       evaluationDetail: null,
+      // 小程序端不能使用 `v-for="star in 5"` 表示 1~5。
+      // 微信编译产物会按 0~4 生成循环项，导致第五颗星实际提交 4 分。
+      ratingOptions: [1, 2, 3, 4, 5],
       evaluation: {
         score: 0,
         content: ''
@@ -257,11 +260,11 @@ export default {
       }[score] || ''
     },
 
-    confirmSubmit() {
+    confirmSubmit(score) {
       return new Promise(resolve => {
         uni.showModal({
           title: '提交评价',
-          content: '评价提交后不可修改，确定提交吗？',
+          content: `当前选择 ${score} 分，评价提交后不可修改，确定提交吗？`,
           confirmText: '确定提交',
           success: result => resolve(Boolean(result.confirm)),
           fail: () => resolve(false)
@@ -284,7 +287,9 @@ export default {
         this.$u.toast('评价内容最多500字')
         return
       }
-      if (!await this.confirmSubmit()) return
+      // 在确认框打开前固定本次提交分数，避免异步确认期间界面状态变化影响请求体。
+      const selectedScore = Number(this.evaluation.score)
+      if (!await this.confirmSubmit(selectedScore)) return
 
       this.submitting = true
       if (!this.idempotencyKey) {
@@ -292,7 +297,7 @@ export default {
       }
       try {
         await evaluationApi.submitEvaluation(this.orderId, {
-          overallScore: this.evaluation.score,
+          overallScore: selectedScore,
           evaluationContent: this.evaluation.content,
           version: this.order.version,
           idempotencyKey: this.idempotencyKey
@@ -300,8 +305,13 @@ export default {
         this.idempotencyKey = ''
         uni.$emit('refreshEvaluationList')
         uni.$emit('refreshOrderList')
-        this.$u.toast('评价提交成功')
         await this.loadOrderInfo()
+        const persistedScore = this.evaluationDetail ? Number(this.evaluationDetail.score) : 0
+        if (persistedScore !== selectedScore) {
+          this.$u.toast('评价已提交，但服务端评分与所选分数不一致')
+          return
+        }
+        this.$u.toast(`已提交 ${persistedScore} 分评价`)
       } catch (error) {
         if (this.isConflictError(error)) {
           // 刷新后 version 已变化，下一次提交必须生成与新请求体对应的新 key。

@@ -47,6 +47,7 @@
       <div class="chart-content">
         <div class="chart-bars">
           <div v-for="(item, index) in chartData" :key="index" class="chart-bar">
+            <div class="bar-value">{{ item.count }}</div>
             <div class="bar" :style="{ height: item.value + '%', backgroundColor: barColor }"></div>
             <div class="bar-label">{{ item.label }}</div>
           </div>
@@ -126,12 +127,12 @@
           <i class="van-icon van-icon-arrow-right"></i>
         </div>
       </div>
-	  <div v-if="canEvaluate" class="status-card" :class="[statusColors.completed, cardHoverClass]" @click="handleevaluate">
+	  <div v-if="canEvaluate" class="status-card" :class="[statusColors.pendingEvaluation, cardHoverClass]" @click="handleevaluate">
 	    <div class="status-icon">
 	      <i class="van-icon van-icon-exclamation-circle"></i>
 	    </div>
 	    <div class="status-info">
-	      <div class="status-value" :class="{ countUp: animateStats }">{{ statusStats.completed }}</div>
+	      <div class="status-value" :class="{ countUp: animateStats }">{{ statusStats.pendingEvaluation }}</div>
 	      <div class="status-label">待评价</div>
 	    </div>
 	    <div class="status-arrow">
@@ -162,6 +163,7 @@ export default {
         waitingAccept: 0,
         inProgress: 0,
         waitingConfirm: 0,
+        pendingEvaluation: 0,
         completed: 0
       },
       statusColors: {
@@ -169,6 +171,7 @@ export default {
         waitingAccept: 'status-waiting-accept',
         inProgress: 'status-in-progress',
         waitingConfirm: 'status-overdue',
+        pendingEvaluation: 'status-overdue',
         completed: 'status-overdue'
       },
       animateStats: false,
@@ -239,7 +242,10 @@ export default {
           waitingAccept: value.WAIT_ACCEPT || 0,
           inProgress: (value.ACCEPTED || 0) + (value.PROCESSING || 0),
           waitingConfirm: value.WAIT_CONFIRM || 0,
-          completed: value.COMPLETED || 0
+          // 待评价必须与评价页保持同一口径：当前报修人的 COMPLETED 工单，不包含已评价的 CLOSED。
+          pendingEvaluation: value.PENDING_EVALUATION || 0,
+          // 状态分布中的“已完成”表示业务已结束，因此包含已确认和已评价两种状态。
+          completed: (value.COMPLETED || 0) + (value.CLOSED || 0)
         };
         this.updateChartData();
         this.animateStats = true;
@@ -263,11 +269,12 @@ export default {
         { label: '待接', count: this.statusStats.waitingAccept },
         { label: '处理中', count: this.statusStats.inProgress },
         { label: '待确认', count: this.statusStats.waitingConfirm },
-        { label: '待评价', count: this.statusStats.completed }
+        { label: '已完成', count: this.statusStats.completed }
       ];
       const max = Math.max(1, ...source.map(item => item.count));
       this.chartData = source.map(item => ({
         label: item.label,
+        count: item.count,
         value: item.count ? Math.max(8, Math.round(item.count / max * 100)) : 0
       }));
     },
@@ -277,8 +284,14 @@ export default {
     handleAssign() {
       this.$tab.navigateTo('/pages/order/assign/index');
     },
-    handleProcess() {
-      this.$tab.navigateTo('/pages/order/handle/index');
+    handleProcess(status) {
+      const tab = {
+        waitingAccept: 0,
+        inProgress: 1,
+        waitingConfirm: 2
+      }[status];
+      const query = Number.isInteger(tab) ? `?tab=${tab}` : '';
+      this.$tab.navigateTo(`/pages/order/handle/index${query}`);
     },
 	handleevaluate() {
 	  this.$tab.navigateTo('/pages/order/evaluate/index');
@@ -299,7 +312,7 @@ export default {
         return;
       }
       if (this.canProcess) {
-        this.handleProcess();
+        this.handleProcess(status);
         return;
       }
       const statusQuery = statusMap[status] ? `?status=${statusMap[status]}` : '';
@@ -643,6 +656,18 @@ $transition-default: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     align-items: center;
     width: 12%;
     position: relative;
+
+    .bar-value {
+      min-height: 18px;
+      margin-bottom: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #445466;
+
+      .work-order-app.dark & {
+        color: #E5E6EB;
+      }
+    }
     
     .bar {
       width: 100%;

@@ -41,13 +41,10 @@ public class WorkOrderF01SqlContractTest
     }
 
     @Test
-    public void composeShouldExecuteEveryIncrementalScriptThroughF01() throws IOException
+    public void composeShouldExecuteCompleteInitializationBundle() throws IOException
     {
         String compose = read(Paths.get("docker-compose.yml"), Paths.get("..", "docker-compose.yml"));
-        assertContains(compose,
-                "09_workorder_m1_b02.sql",
-                "10_workorder_m1_d03.sql",
-                "11_workorder_f01_sla_delay.sql");
+        assertContains(compose, "00_workorder_full_init.sql");
     }
 
     private String read(Path primary, Path fallback) throws IOException

@@ -5,7 +5,8 @@ services:
     container_name: workorder-mysql
     restart: unless-stopped
     environment:
-      MYSQL_DATABASE: "${MYSQL_DATABASE:-workorder}"
+      # 完整初始化 SQL 固定创建并使用 workorder 数据库，避免环境变量与脚本目标库不一致。
+      MYSQL_DATABASE: "workorder"
       MYSQL_USER: "${MYSQL_USER:?Set MYSQL_USER in .env}"
       MYSQL_PASSWORD: "${MYSQL_PASSWORD:?Set MYSQL_PASSWORD in .env}"
       MYSQL_ROOT_PASSWORD: "${MYSQL_ROOT_PASSWORD:?Set MYSQL_ROOT_PASSWORD in .env}"
@@ -18,19 +19,7 @@ services:
       - "${MYSQL_BIND_ADDRESS:-127.0.0.1}:${MYSQL_HOST_PORT:-3306}:3306"
     volumes:
       - workorder_mysql_data:/var/lib/mysql
-      - ./sql/ry_20250522.sql:/docker-entrypoint-initdb.d/01-ruoyi.sql:ro
-      - ./sql/quartz.sql:/docker-entrypoint-initdb.d/02-quartz.sql:ro
-      - ./sql/03_workorder_core_schema.sql:/docker-entrypoint-initdb.d/03-workorder-core-schema.sql:ro
-      - ./sql/04_workorder_dict.sql:/docker-entrypoint-initdb.d/04-workorder-dict.sql:ro
-      - ./sql/05_workorder_menu.sql:/docker-entrypoint-initdb.d/05-workorder-menu.sql:ro
-      - ./sql/06_workorder_role_grant.sql:/docker-entrypoint-initdb.d/06-workorder-role-grant.sql:ro
-      - ./sql/07_workorder_seed.sql:/docker-entrypoint-initdb.d/07-workorder-seed.sql:ro
-      - ./sql/08_workorder_m1_core_adjust.sql:/docker-entrypoint-initdb.d/08-workorder-m1-core-adjust.sql:ro
-      - ./sql/09_workorder_m1_b02.sql:/docker-entrypoint-initdb.d/09-workorder-m1-b02.sql:ro
-      - ./sql/10_workorder_m1_d03.sql:/docker-entrypoint-initdb.d/10-workorder-m1-d03.sql:ro
-      - ./sql/11_workorder_f01_sla_delay.sql:/docker-entrypoint-initdb.d/11-workorder-f01-sla-delay.sql:ro
-      - ./sql/12_workorder_f02_notification.sql:/docker-entrypoint-initdb.d/12-workorder-f02-notification.sql:ro
-      - ./sql/13_workorder_f04_operations.sql:/docker-entrypoint-initdb.d/13-workorder-f04-operations.sql:ro
+      - ./sql/00_workorder_full_init.sql:/docker-entrypoint-initdb.d/00-workorder-full-init.sql:ro
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u\"$${MYSQL_USER}\" -p\"$${MYSQL_PASSWORD}\" --silent"]
       interval: 5s

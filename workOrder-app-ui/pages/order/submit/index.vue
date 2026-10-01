@@ -79,7 +79,12 @@
                 <text class="category-error-text">{{ categoryLoadError }}</text>
                 <u-button type="primary" size="mini" plain @click="loadCategories">重试</u-button>
               </view>
-              <u-radio-group v-else v-model="faultForm.categoryId" class="radio-group-horizontal">
+              <u-radio-group
+                v-else
+                v-model="faultForm.categoryId"
+                class="radio-group-horizontal"
+                @change="handleSelectChange('categoryId', $event)"
+              >
                 <u-radio 
                   v-for="(item, index) in categoryList" 
                   :key="item.value" 
@@ -107,7 +112,11 @@
             
             <!-- 紧急程度（单选框） -->
             <u-form-item label="紧急程度" prop="urgencyLevel" required>
-              <u-radio-group v-model="faultForm.urgencyLevel" class="radio-group-horizontal">
+              <u-radio-group
+                v-model="faultForm.urgencyLevel"
+                class="radio-group-horizontal"
+                @change="handleSelectChange('urgencyLevel', $event)"
+              >
                 <u-radio 
                   v-for="(item, index) in urgencyList" 
                   :key="index" 
@@ -125,7 +134,11 @@
             
             <!-- 影响范围（单选框） -->
             <u-form-item label="影响范围" prop="impactScope" required>
-              <u-radio-group v-model="faultForm.impactScope" class="radio-group-vertical">
+              <u-radio-group
+                v-model="faultForm.impactScope"
+                class="radio-group-vertical"
+                @change="handleSelectChange('impactScope', $event)"
+              >
                 <u-radio 
                   v-for="(item, index) in scopeList" 
                   :key="index" 
@@ -285,16 +298,18 @@ export default {
       fileList: [],
       faultRules: {
         categoryId: [
-          { required: true, message: '请选择故障分类', trigger: ['change'] }
+          // radio 在微信小程序端会于 change 后再次触发内部校验，
+          // 此处由提交时的完整校验统一处理，避免选中后残留错误提示。
+          { required: true, message: '请选择故障分类' }
         ],
         location: [
           { required: true, message: '请输入故障位置', trigger: ['blur', 'change'] }
         ],
         urgencyLevel: [
-          { required: true, message: '请选择紧急程度', trigger: ['change'] }
+          { required: true, message: '请选择紧急程度' }
         ],
         impactScope: [
-          { required: true, message: '请选择影响范围', trigger: ['change'] }
+          { required: true, message: '请选择影响范围' }
         ],
         description: [
           { required: true, message: '请描述故障现象', trigger: ['blur', 'change'] }
@@ -474,6 +489,18 @@ export default {
       } else {
         this.currentStep = 0;
       }
+    },
+
+    // 小程序端的 radio 视觉状态和表单校验状态分别更新；这里显式同步字段，
+    // 并在数据写入完成后仅清除当前字段的旧校验结果。
+    handleSelectChange(field, value) {
+      this.faultForm[field] = value;
+      this.$nextTick(() => {
+        if (this.$refs.faultForm) {
+          this.$refs.faultForm.clearValidate([field]);
+        }
+        this.updateStepIndicator();
+      });
     },
 
     // 加载真实工单分类

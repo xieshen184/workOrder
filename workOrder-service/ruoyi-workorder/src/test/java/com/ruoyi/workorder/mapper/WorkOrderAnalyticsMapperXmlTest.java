@@ -24,6 +24,8 @@ public class WorkOrderAnalyticsMapperXmlTest
         assertTrue(sql.contains("d.dept_id = 23"));
         assertTrue(sql.contains("coalesce(o.extension_deadline, o.finish_deadline) is not null"));
         assertTrue(sql.contains("action_type = 'return'"));
+        assertTrue(sql.contains("timestampdiff(second, o.assigned_at, o.accepted_at) / 60.0"));
+        assertTrue(sql.contains("timestampdiff(second, o.accepted_at, o.arrived_at) / 60.0"));
     }
 
     @Test

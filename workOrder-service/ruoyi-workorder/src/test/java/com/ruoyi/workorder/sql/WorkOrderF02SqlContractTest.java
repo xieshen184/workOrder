@@ -29,10 +29,10 @@ public class WorkOrderF02SqlContractTest
     }
 
     @Test
-    public void composeShouldExecuteF02Script() throws IOException
+    public void composeShouldExecuteCompleteInitializationBundle() throws IOException
     {
         String compose = read(Paths.get("docker-compose.yml"), Paths.get("..", "docker-compose.yml"));
-        assertContains(compose, "12_workorder_f02_notification.sql");
+        assertContains(compose, "00_workorder_full_init.sql");
     }
 
     private String read(Path primary, Path fallback) throws IOException

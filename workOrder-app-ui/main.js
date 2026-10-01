@@ -4,7 +4,7 @@ import store from './store' // store
 import plugins from './plugins' // plugins
 import './permission' // permission
 import { getDicts } from "@/api/system/dict/data"
-import uView from '@/node_modules/uview-ui'
+import uView from '@/uview-ui'
 Vue.use(uView)
 Vue.use(plugins);
 

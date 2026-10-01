@@ -3,7 +3,7 @@
     <!-- 顶部导航栏 -->
     <u-navbar
       title="工单管理"
-      :is-back="true"
+      :auto-back="true"
       background="#36CFC9"
       title-color="#ffffff"
       left-icon-color="#ffffff"
@@ -71,10 +71,10 @@
         <view v-else class="order-list">
           <view
             v-for="order in currentOrders"
-            :key="order.id"
+            :key="orderKey(order)"
             class="order-card"
             :class="cardClass(order)"
-            @click="toOrderDetail(order.id)"
+            @click="toOrderDetail(getOrderId(order))"
           >
             <view class="status-bar" :class="barClass(order)"></view>
             <view class="order-content">
@@ -132,7 +132,9 @@ import orderApi from '@/api/order/handle.js'
 const TAB_STATUSES = [
   ['WAIT_ACCEPT'],
   ['ACCEPTED', 'PROCESSING'],
-  ['WAIT_CONFIRM', 'COMPLETED', 'CLOSED']
+  // “待确认”只展示工程师已完工、等待报修人确认的工单。
+  // COMPLETED/CLOSED 属于历史完成状态，不能混入首页“待确认”的查询结果。
+  ['WAIT_CONFIRM']
 ]
 
 export default {
@@ -142,7 +144,7 @@ export default {
       tabList: [
         { name: '待接单', count: 0 },
         { name: '执行中', count: 0 },
-        { name: '已完成', count: 0 }
+        { name: '待确认', count: 0 }
       ],
       pendingOrders: [],
       processingOrders: [],
@@ -181,7 +183,7 @@ export default {
     },
 
     emptyText() {
-      return ['暂无待接工单', '暂无执行中工单', '暂无已完成工单'][this.activeTab]
+      return ['暂无待接工单', '暂无执行中工单', '暂无待确认工单'][this.activeTab]
     },
 
     emptyMode() {
@@ -193,6 +195,18 @@ export default {
     await this.loadOrders()
     this.refreshHandler = () => this.loadOrders()
     uni.$on('refreshOrderList', this.refreshHandler)
+  },
+
+  onLoad(options) {
+    // 首页按工单状态进入时，直接落在对应页签；直接打开处理中心仍默认展示待接单。
+    const tab = Number(options && options.tab)
+    if (Number.isInteger(tab) && tab >= 0 && tab < this.tabList.length) this.activeTab = tab
+  },
+
+  onShow() {
+    // 退回返工、改派或其他终端处理后，页面栈中的旧列表可能已经过期。
+    // 首次进入由 created 加载；后续每次回到处理中心都重新读取服务端状态。
+    if (this.hasLoadedOnce) this.loadOrders()
   },
 
   onUnload() {
@@ -315,6 +329,14 @@ export default {
       } catch (error) {
         return String(order)
       }
+    },
+
+    // 工程师工单列表在不同接口版本中可能返回 id 或 orderId，详情接口统一接收其真实主键。
+    getOrderId(order) {
+      if (!order) return ''
+      if (order.id !== undefined && order.id !== null && order.id !== '') return order.id
+      if (order.orderId !== undefined && order.orderId !== null && order.orderId !== '') return order.orderId
+      return ''
     },
 
     mergeOrders(existing, incoming) {

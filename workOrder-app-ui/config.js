@@ -223,7 +223,8 @@ function assertValidConfig(values, environmentName) {
 
 const environment = resolveBuildEnvironment()
 const runtimeValues = {
-  baseUrl: readEnvironmentValue('VUE_APP_BASE_API'),
+  baseUrl: readEnvironmentValue('VUE_APP_BASE_API')
+    || (isDevelopmentEnvironment(environment) ? 'http://192.168.0.116:8080' : undefined),
   privacyUrl: readEnvironmentValue('VUE_APP_PRIVACY_URL'),
   serviceAgreementUrl: readEnvironmentValue('VUE_APP_SERVICE_AGREEMENT_URL'),
   serviceSiteUrl: readEnvironmentValue('VUE_APP_SERVICE_SITE_URL'),

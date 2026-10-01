@@ -2,7 +2,7 @@
   <view class="page-container">
     <u-navbar
       title="延期申请"
-      :is-back="true"
+      :auto-back="true"
       background="#FFFFFF"
       title-color="#303133"
       left-icon-color="#606266"

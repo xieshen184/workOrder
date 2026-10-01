@@ -9,6 +9,14 @@ export function listDept(query) {
   })
 }
 
+// 查询部门树选择项，仅要求部门查询权限，供业务页面的组织筛选和部门选择使用。
+export function deptTreeSelect() {
+  return request({
+    url: '/system/dept/treeselect',
+    method: 'get'
+  })
+}
+
 // 查询部门列表（排除节点）
 export function listDeptExcludeChild(deptId) {
   return request({
